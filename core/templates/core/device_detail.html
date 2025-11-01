@@ -1,0 +1,45 @@
+{% extends "core/base.html" %}
+
+{% block title %}Detalhes do Dispositivo — {{ device.identifier }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1>Dispositivo: {{ device.display_name|default:device.identifier }}</h1>
+  <div>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'core:device_update' device.pk %}">Editar</a>
+    <a class="btn btn-sm btn-secondary" href="{% url 'core:device_list' %}">Voltar</a>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-6">
+    <table class="table table-bordered">
+      <tbody>
+        <tr><th>Identifier (%%account%%)</th><td>{{ device.identifier }}</td></tr>
+        <tr><th>Display name (%%displayname%%)</th><td>{{ device.display_name|default:'-' }}</td></tr>
+        <tr><th>User (%%user%%)</th><td>{{ device.user_register|default:'-' }}</td></tr>
+        <tr><th>Passwd (%%passwd%%)</th><td>{% if device.passwd_register %}•••••{% else %}-{% endif %}</td></tr>
+        <tr><th>MAC (%%macaddress%%)</th><td>{{ device.mac_address|default:'-' }}</td></tr>
+        <tr><th>IP (compat)</th><td>{{ device.ip_address|default:"-" }}</td></tr>
+        <tr><th>IP Pública</th><td>{{ device.public_ip|default:"-" }}</td></tr>
+        <tr><th>IP Privada</th><td>{{ device.private_ip|default:"-" }}</td></tr>
+      </tbody>
+    </table>
+
+    <h5>Perfil / Configurações</h5>
+    {% if device.profile %}
+    <table class="table table-sm table-bordered">
+      <tbody>
+        <tr><th>Profile</th><td><a href="{% url 'core:profile_detail' device.profile.pk %}">{{ device.profile.name }}</a></td></tr>
+        <tr><th>SIP Server</th><td>{{ device.profile.sip_server }}</td></tr>
+        <tr><th>Port</th><td>{{ device.profile.port_server }}</td></tr>
+        <tr><th>Protocol</th><td>{{ device.profile.protocol_type }}</td></tr>
+        <tr><th>Template Ref</th><td>{{ device.profile.template_ref|default:"-" }}</td></tr>
+      </tbody>
+    </table>
+    {% else %}
+      <p class="text-muted">Nenhum perfil associado.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

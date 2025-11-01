@@ -1,0 +1,24 @@
+{% extends "core/base.html" %}
+
+{% block title %}Perfil: {{ profile.name }}{% endblock %}
+
+{% block content %}
+<h1>Perfil: {{ profile.name }}</h1>
+
+<table class="table table-bordered mb-3">
+  <tr><th>SIP Server</th><td>{{ profile.sip_server|default:"-" }}</td></tr>
+  <tr><th>Port</th><td>{{ profile.port_server }}</td></tr>
+  <tr><th>Protocol</th><td>{{ profile.protocol_type }}</td></tr>
+  <tr><th>Template Ref</th><td>{{ profile.template_ref|default:"-" }}</td></tr>
+  <tr><th>Proxy (%%proxy%%)</th><td>{{ profile.proxy|default:"-" }}</td></tr>
+  <tr><th>Register TTL (%%registerttl%%)</th><td>{{ profile.register_ttl }}</td></tr>
+  <tr><th>NTP (%%ntpserver%%)</th><td>{{ profile.ntp_server|default:"-" }}</td></tr>
+  <tr><th>Voice codecs (%%codecs%%)</th><td>{{ profile.voice_codecs|default:"-" }}</td></tr>
+  <tr><th>Provision server/file (%%provisionserver%% / %%provisionfile%%)</th><td>{{ profile.provision_server|default:"-" }} / {{ profile.provision_file|default:"-" }}</td></tr>
+  <tr><th>VLAN (%%vlanactive%% / %%vlanid%%)</th><td>{{ profile.vlan_active|yesno:"Yes,No" }} / {{ profile.vlan_id|default:"-" }}</td></tr>
+  <tr><th>Metadata</th><td><pre>{{ profile.metadata|default:"{}" }}</pre></td></tr>
+</table>
+
+<a class="btn btn-secondary" href="{% url 'core:profile_edit' profile.pk %}">Editar Perfil</a>
+<a class="btn btn-outline-secondary" href="{% url 'core:profile_list' %}">Voltar</a>
+{% endblock %}

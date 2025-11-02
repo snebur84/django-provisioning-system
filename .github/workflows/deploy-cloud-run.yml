@@ -43,7 +43,7 @@ jobs:
           docker push $IMAGE_URL
 
           # Salva a URL para o próximo Job
-          echo "::set-output name=image_url::$IMAGE_URL"
+          echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
 
       - name: Deploy no Cloud Run (Serviço principal)
         uses: google-github-actions/deploy-cloudrun@v2
@@ -51,7 +51,7 @@ jobs:
           service: ${{ vars.SERVICE_NAME }}
           region: ${{ vars.REGION }}
           image: ${{ steps.build_push.outputs.image_url }}
-          service_account_email: ${{ vars.SA_RUNTIME_EMAIL }}
+          service_account: ${{ vars.SA_RUNTIME_EMAIL }}
           flags: --add-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }}
           env_vars: |
             SECRET_KEY=${{ secrets.SECRET_KEY }}

@@ -29,6 +29,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ vars.PROJECT_ID }}
+          install_components: ['gke-gcloud-auth-plugin', 'beta']
 
       - name: Configurar Docker para Artifact Registry (GAR)
         run: gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev
@@ -63,8 +64,8 @@ jobs:
             DB_NAME=${{ vars.DB_NAME }}
             IS_CLOUD_RUN=True
             GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }}
-      
-      - name: 🚀 Executar Migrations (via gcloud CLI)
+
+      - name: Executar Migrations (via gcloud CLI)
         run: |
           # Reusa a URL da imagem que acabamos de construir
           IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
@@ -79,4 +80,4 @@ jobs:
             --add-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} \
             --service-account ${{ vars.SA_RUNTIME_EMAIL }} \
             --set-env-vars SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},MONGODB_URI=${{ secrets.MONGODB_URI }},CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True \
-            --wait
+            --wait --quiet

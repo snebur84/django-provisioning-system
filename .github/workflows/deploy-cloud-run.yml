@@ -74,7 +74,7 @@ jobs:
 
     steps:
       - name: Autenticar no GCP
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/run-cloudrun-job@v1
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 

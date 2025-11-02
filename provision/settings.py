@@ -145,9 +145,32 @@ else:
         }
     }
 
-# --- MongoDB (Atlas) ---
-# DEBUG CRÍTICO: Isola o MongoDB como causa da falha de inicialização.
+# --- MongoDB (Atlas) - RESTAURADO ---
+MONGODB_URI = os.getenv("MONGODB_URI") 
 MONGODB = {}
+
+if MONGODB_URI:
+    # Conexão via URI completa (padrão para MongoDB Atlas)
+    parsed_uri = urlparse(MONGODB_URI)
+    
+    MONGODB = {
+        "URI": MONGODB_URI,
+        "HOST": parsed_uri.hostname,
+        "PORT": parsed_uri.port or 27017,
+        "DB_NAME": os.getenv("MONGODB_DB_NAME", parsed_uri.path.strip('/') or "provision_mongo"),
+        "USER": parsed_uri.username,
+        "PASSWORD": parsed_uri.password,
+    }
+else:
+    # Fallback para Localhost
+    MONGODB = {
+        "HOST": os.getenv("MONGODB_HOST", "localhost"),
+        "PORT": int(os.getenv("MONGODB_PORT", 27017)),
+        "DB_NAME": os.getenv("MONGODB_DB_NAME", "provision_mongo"),
+        "USER": os.getenv("MONGODB_USER", ""),
+        "PASSWORD": os.getenv("MONGODB_PASSWORD", ""),
+    }
+
 
 # --- Arquivos Estáticos e de Mídia (GCS) ---
 

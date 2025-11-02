@@ -206,6 +206,7 @@ if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
     }
     
     GS_BUCKET_NAME = os.getenv("GS_BUCKET_NAME")
+    GS_URL_SIGNER = False
     
     STATIC_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/static/"
     MEDIA_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/media/"

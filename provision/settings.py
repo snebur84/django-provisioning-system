@@ -24,6 +24,12 @@ ALLOWED_HOSTS = [
     for h in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,*.run.app").split(",")
     if h.strip()
 ]
+
+# 2. Adicionar o domínio personalizado
+ALLOWED_HOSTS.append("crcttec.com.br")
+ALLOWED_HOSTS.append("www.crcttec.com.br")
+ALLOWED_HOSTS.append("run.app")
+
 # Opcional: Adiciona o domínio interno do Cloud Run para saúde e comunicação interna
 if IS_CLOUD_RUN_PRODUCTION and os.getenv('K_SERVICE'):
     ALLOWED_HOSTS.append(f"{os.getenv('K_SERVICE')}-{os.getenv('K_REVISION')}.{os.getenv('K_SERVICE')}.svc.cluster.local")

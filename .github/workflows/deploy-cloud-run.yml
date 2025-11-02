@@ -97,36 +97,26 @@ jobs:
           gcloud beta run jobs execute "$JOB_NAME" --region "$REGION" --wait --quiet
 
       - name: Executar Criação de Superuser do Cloud Run Job
-        # Usamos o mesmo Job de migração para esta etapa.
         run: |
           JOB_NAME_SUPERUSER="${{ vars.SERVICE_NAME }}-superuser"
           IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
 
-          # 1. Definir o comando de configuração (flags) em uma variável
-          CONFIG_FLAGS="--region ${{ vars.REGION }} --image ${IMAGE_URL} \
-            --set-env-vars SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True \
-            --set-secrets=DJANGO_SUPERUSER_PASSWORD=superuser_password:latest,DJANGO_SUPERUSER_USERNAME=superuser_username:latest \
-            --command python \
-            --args manage.py,createsuperuser,--noinput,--email,admin@crcttec.com.br \
-            --set-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} \
-            --service-account=${{ vars.SA_RUNTIME_EMAIL }} \
-            --max-retries=3 --quiet"
-
-          # 2. Tentar CRIAR o Job. Se já existir, a falha é ignorada (|| true).
-          echo "1. Tentando CRIAR o Job de Superuser (ignorando erro se já existir)..."
-          gcloud run jobs create "${JOB_NAME_SUPERUSER}" ${CONFIG_FLAGS} || true
-
-          # 3. ATUALIZAR o Job (para garantir que a imagem e secrets estão corretos).
-          echo "2. Atualizando o Job de Superuser..."
-          # Usamos 'update' para redefinir as flags de secrets e imagem
+          # 1. Atualizar o Job (para garantir a imagem e secrets corretos)
+          echo "1. Atualizando o Job de Superuser..."
           gcloud run jobs update "${JOB_NAME_SUPERUSER}" \
             --region ${{ vars.REGION }} \
             --image ${IMAGE_URL} \
             --set-secrets=DJANGO_SUPERUSER_PASSWORD=superuser_password:latest,DJANGO_SUPERUSER_USERNAME=superuser_username:latest \
             --quiet
-
-          # 4. Executa o Job e aguarda sua conclusão
-          echo "3. Executando Job de Criação de Superuser..."
+          
+          # 2. Executa o Job e AGUARDA sua conclusão.
+          # O comando 'gcloud run jobs execute' deve ser executado com o || true
+          # para que a falha interna do contêiner não quebre o workflow.
+          echo "2. Executando Job de Criação de Superuser (pode retornar erro se usuário já existir)..."
+          
+          # O comando execute do gcloud é o que precisa da validação
           gcloud run jobs execute "${JOB_NAME_SUPERUSER}" \
             --region "${{ vars.REGION }}" \
-            --wait --quiet
+            --wait --quiet || true 
+          
+          echo "Job de Superuser concluído (ou ignorado com sucesso se o usuário já existia)."

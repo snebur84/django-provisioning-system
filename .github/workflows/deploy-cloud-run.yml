@@ -29,7 +29,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ vars.PROJECT_ID }}
-          install_components: ['gke-gcloud-auth-plugin', 'beta']
+          install_components: 'beta'
 
       - name: Configurar Docker para Artifact Registry (GAR)
         run: gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev

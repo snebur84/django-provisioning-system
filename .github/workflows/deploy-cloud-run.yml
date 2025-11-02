@@ -66,9 +66,6 @@ jobs:
             GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }}
             DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,*.run.app,crcttec.com.br,www.crcttec.com.br
 
-      # -------------------------------------------------------------------
-      # ÚLTIMO STEP: CONFIGURAR E EXECUTAR O JOB (Utilizando Variáveis Pré-montadas)
-      # -------------------------------------------------------------------
       - name: Executar Migrations (Comando Isolado)
         shell: bash
         run: |
@@ -98,30 +95,38 @@ jobs:
           echo "3. Executando o Job..."
           # O comando de execução é o mais simples possível
           gcloud beta run jobs execute "$JOB_NAME" --region "$REGION" --wait --quiet
-      
+
       - name: Executar Criação de Superuser do Cloud Run Job
+        # Usamos o mesmo Job de migração para esta etapa.
         run: |
           JOB_NAME_SUPERUSER="${{ vars.JOB_NAME }}-superuser"
           IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
 
-          # 1. Cria ou Atualiza o Job do Cloud Run
-          # O comando principal é 'python manage.py createsuperuser'
-          gcloud run jobs replace "${JOB_NAME_SUPERUSER}" \
-            --region "${{ vars.REGION }}" \
-            --image "${IMAGE_URL}" \
-            --set-env-vars SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},CLOUD_SQL_CONNECTION_NAME="${{ vars.CLOUD_SQL_CONNECTION_NAME }}",DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True \
-            
-            # 🚨 CORREÇÃO APLICADA: Mapeamento dos Secrets para as variáveis DJANGO_SUPERUSER_*
+          # 1. Definir o comando de configuração (flags) em uma variável
+          CONFIG_FLAGS="--region ${{ vars.REGION }} --image ${IMAGE_URL} \
+            --set-env-vars SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True \
             --set-secrets=DJANGO_SUPERUSER_PASSWORD=superuser_password:latest,DJANGO_SUPERUSER_USERNAME=superuser_username:latest \
-            
             --command python \
             --args manage.py,createsuperuser,--noinput,--email,admin@crcttec.com.br \
-            --set-cloudsql-instances "${{ vars.CLOUD_SQL_CONNECTION_NAME }}" \
+            --set-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} \
             --service-account=${{ vars.SA_RUNTIME_EMAIL }} \
-            --max-retries=3
+            --max-retries=3 --quiet"
 
-          # 2. Executa o Job e aguarda sua conclusão
-          echo "Executando Job de Criação de Superuser..."
+          # 2. Tentar CRIAR o Job. Se já existir, a falha é ignorada (|| true).
+          echo "1. Tentando CRIAR o Job de Superuser (ignorando erro se já existir)..."
+          gcloud run jobs create "${JOB_NAME_SUPERUSER}" ${CONFIG_FLAGS} || true
+
+          # 3. ATUALIZAR o Job (para garantir que a imagem e secrets estão corretos).
+          echo "2. Atualizando o Job de Superuser..."
+          # Usamos 'update' para redefinir as flags de secrets e imagem
+          gcloud run jobs update "${JOB_NAME_SUPERUSER}" \
+            --region ${{ vars.REGION }} \
+            --image ${IMAGE_URL} \
+            --set-secrets=DJANGO_SUPERUSER_PASSWORD=superuser_password:latest,DJANGO_SUPERUSER_USERNAME=superuser_username:latest \
+            --quiet
+
+          # 4. Executa o Job e aguarda sua conclusão
+          echo "3. Executando Job de Criação de Superuser..."
           gcloud run jobs execute "${JOB_NAME_SUPERUSER}" \
             --region "${{ vars.REGION }}" \
-            --wait
+            --wait --quiet

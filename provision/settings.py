@@ -12,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --- Detecção e Variáveis Críticas ---
 # CORREÇÃO: Usa 'K_SERVICE' para detectar se está rodando no ambiente Cloud Run
-IS_CLOUD_RUN_PRODUCTION = os.getenv("K_SERVICE") is not None
+IS_CLOUD_RUN_PRODUCTION = os.getenv("K_SERVICE") is not None or os.getenv("IS_CLOUD_RUN") == "True"
 
 # Secrets e Debug
 # Usamos SECRET_KEY para consistência com as práticas de ambiente
@@ -173,8 +173,6 @@ else:
 
 
 # --- Arquivos Estáticos e de Mídia (GCS) ---
-
-IS_CLOUD_RUN_PRODUCTION = os.getenv('K_SERVICE') is not None
 
 # Usa a detecção robusta de ambiente K_SERVICE
 if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):

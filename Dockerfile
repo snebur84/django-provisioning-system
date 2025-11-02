@@ -48,4 +48,4 @@ ENV PORT=8080
 EXPOSE 8080
 
 # 🏃 Comando de Inicialização (Entrypoint)
-CMD ["gunicorn", "provision.wsgi:application", "--bind", "0.0.0.0:${PORT}", "--workers", "4", "--timeout", "180"]
+CMD ["gunicorn", "provision.wsgi:application", "--bind", "0.0.0.0:${PORT}", "--workers", "4", "--timeout", "300"]

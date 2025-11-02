@@ -65,30 +65,46 @@ jobs:
             IS_CLOUD_RUN=True
             GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }}
 
-      - name: Configurar e Criar Job de Migração
+      - name: 🚀 Executar Migrations (UPDATE/CREATE/EXECUTE)
+        # Use 'bash' explicitamente para melhor suporte a sintaxe complexa
+        shell: bash
         run: |
           IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
+          JOB_NAME="${{ vars.SERVICE_NAME }}-migrate"
+          REGION="${{ vars.REGION }}"
+          SQL_INSTANCE="${{ vars.CLOUD_SQL_CONNECTION_NAME }}"
+          SA_EMAIL="${{ vars.SA_RUNTIME_EMAIL }}"
           
-          echo "Aplicando Job Template de Migração..."
+          echo "1. Tentando ATUALIZAR Job existente..."
           
-          # 🚨 CORREÇÃO ESSENCIAL: Usando 'apply' e quebras de linha com '\'
-          # 'apply' garante que ele será criado ou atualizado.
-          gcloud beta run jobs apply provision-web-service-migrate \
-            --region ${{ vars.REGION }} \
+          # Tenta ATUALIZAR o Job. Usamos um '||' (OR lógico) para tentar criar se falhar.
+          # Tudo em uma única linha lógica para evitar erros do shell.
+          gcloud beta run jobs update "$JOB_NAME" \
+            --region "$REGION" \
             --image "$IMAGE_URL" \
             --command python \
             --args manage.py,migrate,--noinput \
-            --add-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} \
-            --service-account ${{ vars.SA_RUNTIME_EMAIL }} \
-            --update-env-vars SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},MONGODB_URI=${{ secrets.MONGODB_URI }},CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True \
-            --quiet
-
-      - name: Executar Job de Migração
-        run: |
-          echo "Disparando Job de Migração..."
+            --add-cloudsql-instances "$SQL_INSTANCE" \
+            --service-account "$SA_EMAIL" \
+            --update-env-vars SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},MONGODB_URI=${{ secrets.MONGODB_URI }},CLOUD_SQL_CONNECTION_NAME="$SQL_INSTANCE",DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True \
+            --quiet || \
           
-          # O comando execute deve ser o mais simples possível
-          gcloud beta run jobs execute provision-web-service-migrate \
-            --region ${{ vars.REGION }} \
-            --wait \
-            --quiet
+          (
+            echo "2. Job não existe. Criando novo Job..."
+            # Se a atualização falhar, CRIA O JOB.
+            gcloud beta run jobs create "$JOB_NAME" \
+              --region "$REGION" \
+              --image "$IMAGE_URL" \
+              --command python \
+              --args manage.py,migrate,--noinput \
+              --add-cloudsql-instances "$SQL_INSTANCE" \
+              --service-account "$SA_EMAIL" \
+              --set-env-vars SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},MONGODB_URI=${{ secrets.MONGODB_URI }},CLOUD_SQL_CONNECTION_NAME="$SQL_INSTANCE",DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True \
+              --quiet
+          )
+          
+          echo "3. Executando o Job..."
+          # Finalmente, executa o Job, que agora existe e está configurado.
+          gcloud beta run jobs execute "$JOB_NAME" \
+            --region "$REGION" \
+            --wait --quiet

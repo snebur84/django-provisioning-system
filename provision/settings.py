@@ -147,7 +147,7 @@ else:
     }
 
 # --- MongoDB (Atlas) ---
-MONGODB_URI = os.getenv("MONGODB_URI") 
+#MONGODB_URI = os.getenv("MONGODB_URI") 
 MONGODB = {}
 
 #if MONGODB_URI:

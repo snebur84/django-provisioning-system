@@ -61,6 +61,7 @@ jobs:
             PROVISION_API_KEY=${{ secrets.PROVISION_API_KEY }}
             CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }}
             DB_NAME=${{ vars.DB_NAME }}
+            IS_CLOUD_RUN=True
             GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }}
 
   run-migrations:

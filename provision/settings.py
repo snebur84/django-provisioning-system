@@ -105,7 +105,7 @@ DB_USER = os.getenv("DB_USER", "provision_user")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "changeme")
 DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
 DB_PORT = os.getenv("DB_PORT", "3306")
-CLOUD_SQL_CONNECTION_NAME = os.getenv("CLOUD_SQL_CONNECTION_NAME") # Injetada pelo Workflow
+CLOUD_SQL_CONNECTION_NAME = os.getenv("CLOUD_SQL_CONNECTION_NAME")
 
 # --- MySQL (Cloud SQL / Local) ---
 if IS_CLOUD_RUN_PRODUCTION and CLOUD_SQL_CONNECTION_NAME:
@@ -170,6 +170,9 @@ else:
 
 
 # --- Arquivos Estáticos e de Mídia (GCS) ---
+
+IS_CLOUD_RUN_PRODUCTION = os.getenv('K_SERVICE') is not None
+
 # Usa a detecção robusta de ambiente K_SERVICE
 if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
     # Produção: Usar Google Cloud Storage (GCS)
@@ -186,16 +189,17 @@ if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
     
     GS_BUCKET_NAME = os.getenv("GS_BUCKET_NAME")
     
-    # URL de acesso ao bucket
     STATIC_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/static/"
     MEDIA_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/media/"
     
-    STATIC_ROOT = None 
+    STATICFILES_DIRS = [BASE_DIR / "static"] 
+    STATIC_ROOT = None
     
 else:
-    # Desenvolvimento Local: Uso do sistema de arquivos local
+    # Desenvolvimento Local/Build do Docker: Uso do sistema de arquivos local
     STATIC_URL = "/static/"
     STATIC_ROOT = BASE_DIR / "staticfiles"
+    STATICFILES_DIRS = [BASE_DIR / "static"]
 
 
 # =====================================================================

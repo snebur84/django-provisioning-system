@@ -64,6 +64,7 @@ jobs:
             DB_NAME=${{ vars.DB_NAME }}
             IS_CLOUD_RUN=True
             GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }}
+            DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,*.run.app,crcttec.com.br,www.crcttec.com.br
 
       # -------------------------------------------------------------------
       # ÚLTIMO STEP: CONFIGURAR E EXECUTAR O JOB (Utilizando Variáveis Pré-montadas)

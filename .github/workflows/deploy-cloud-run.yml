@@ -65,19 +65,26 @@ jobs:
             IS_CLOUD_RUN=True
             GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }}
 
-      - name: Executar Migrations (via gcloud CLI)
+      - name: Configurar Job de Migração
         run: |
-          # Reusa a URL da imagem que acabamos de construir
           IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
           
-          echo "Iniciando Job de Migração..."
-
-          gcloud beta run jobs execute ${{ vars.SERVICE_NAME }}-migrate \
+          # Este comando define o template do job com todas as configs (imagem, envs, comando)
+          gcloud beta run jobs update ${{ vars.SERVICE_NAME }}-migrate \
             --region ${{ vars.REGION }} \
-            --image $IMAGE_URL \
+            --image "$IMAGE_URL" \
             --command python \
             --args manage.py,migrate,--noinput \
             --add-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} \
             --service-account ${{ vars.SA_RUNTIME_EMAIL }} \
-            --set-env-vars SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},MONGODB_URI=${{ secrets.MONGODB_URI }},CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True \
+            --update-env-vars SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},MONGODB_URI=${{ secrets.MONGODB_URI }},CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True \
+            --quiet
+
+      - name: Executar Job de Migração
+        run: |
+          echo "Disparando Job de Migração..."
+          
+          # Agora apenas executamos o job que acabamos de configurar
+          gcloud beta run jobs execute ${{ vars.SERVICE_NAME }}-migrate \
+            --region ${{ vars.REGION }} \
             --wait --quiet

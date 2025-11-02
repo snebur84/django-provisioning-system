@@ -63,41 +63,20 @@ jobs:
             DB_NAME=${{ vars.DB_NAME }}
             IS_CLOUD_RUN=True
             GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }}
+      
+      - name: 🚀 Executar Migrations (via gcloud CLI)
+        run: |
+          # Reusa a URL da imagem que acabamos de construir
+          IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
+          
+          echo "Iniciando Job de Migração..."
 
-  run-migrations:
-    name: Executar Migrations
-    runs-on: ubuntu-latest
-    needs: build-and-deploy
-    permissions:
-      contents: 'read'
-      id-token: 'write'
-
-    steps:
-    - name: Autenticar no GCP
-      uses: google-github-actions/auth@v2 # <--- IMPORTANTE: Deve ser a Action de AUTH
-      with:
-        credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-    - name: Executar Job para Migrations
-      uses: google-github-actions/run-cloudrun-job@v2 # <--- Tentando esta sintaxe novamente
-      with:
-        job: ${{ vars.SERVICE_NAME }}-migrate
-        region: ${{ vars.REGION }}
-        # Usando 'needs' para obter a URL da imagem do Job anterior (Requer que outputs: seja declarado no job anterior)
-        image: ${{ needs.build-and-deploy.outputs.image_url }}
-        flags: |
-          --command python
-          --args manage.py,migrate,--noinput
-          --add-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }}
-          --service-account ${{ vars.SA_RUNTIME_EMAIL }}
-        env_vars: |
-          # Configurações de ambiente completas
-          SECRET_KEY=${{ secrets.SECRET_KEY }}
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          MONGODB_URI=${{ secrets.MONGODB_URI }}
-          PROVISION_API_KEY=${{ secrets.PROVISION_API_KEY }}
-          CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }}
-          DB_NAME=${{ vars.DB_NAME }}
-          IS_CLOUD_RUN=True
-        wait: true
+          gcloud beta run jobs execute ${{ vars.SERVICE_NAME }}-migrate \
+            --region ${{ vars.REGION }} \
+            --image $IMAGE_URL \
+            --command python \
+            --args manage.py,migrate,--noinput \
+            --add-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} \
+            --service-account ${{ vars.SA_RUNTIME_EMAIL }} \
+            --set-env-vars SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},MONGODB_URI=${{ secrets.MONGODB_URI }},CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True \
+            --wait

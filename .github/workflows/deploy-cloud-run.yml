@@ -65,8 +65,10 @@ jobs:
             IS_CLOUD_RUN=True
             GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }}
 
-      - name: 🚀 Executar Migrations (UPDATE/CREATE/EXECUTE)
-        # Use 'bash' explicitamente para melhor suporte a sintaxe complexa
+      # -------------------------------------------------------------------
+      # ÚLTIMO STEP: CONFIGURAR E EXECUTAR O JOB CONDICIONALMENTE
+      # -------------------------------------------------------------------
+      - name: Executar Migrations (Update/Create/Execute)
         shell: bash
         run: |
           IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
@@ -75,29 +77,29 @@ jobs:
           SQL_INSTANCE="${{ vars.CLOUD_SQL_CONNECTION_NAME }}"
           SA_EMAIL="${{ vars.SA_RUNTIME_EMAIL }}"
           
-          echo "1. Tentando ATUALIZAR Job existente..."
+          echo "1. Tentando ATUALIZAR Job existente (com set-cloudsql-instances)..."
           
-          # Tenta ATUALIZAR o Job. Usamos um '||' (OR lógico) para tentar criar se falhar.
-          # Tudo em uma única linha lógica para evitar erros do shell.
+          # CORREÇÃO 1 (Sintaxe gcloud): Usar --set-cloudsql-instances
+          # CORREÇÃO 2 (Shell Syntax): O comando inteiro deve ser uma única instrução lógica no bash.
           gcloud beta run jobs update "$JOB_NAME" \
             --region "$REGION" \
             --image "$IMAGE_URL" \
             --command python \
             --args manage.py,migrate,--noinput \
-            --add-cloudsql-instances "$SQL_INSTANCE" \
+            --set-cloudsql-instances "$SQL_INSTANCE" \
             --service-account "$SA_EMAIL" \
             --update-env-vars SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},MONGODB_URI=${{ secrets.MONGODB_URI }},CLOUD_SQL_CONNECTION_NAME="$SQL_INSTANCE",DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True \
             --quiet || \
           
           (
-            echo "2. Job não existe. Criando novo Job..."
+            echo "2. Job não existe. Criando novo Job (com set-cloudsql-instances)..."
             # Se a atualização falhar, CRIA O JOB.
             gcloud beta run jobs create "$JOB_NAME" \
               --region "$REGION" \
               --image "$IMAGE_URL" \
               --command python \
               --args manage.py,migrate,--noinput \
-              --add-cloudsql-instances "$SQL_INSTANCE" \
+              --set-cloudsql-instances "$SQL_INSTANCE" \
               --service-account "$SA_EMAIL" \
               --set-env-vars SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},MONGODB_URI=${{ secrets.MONGODB_URI }},CLOUD_SQL_CONNECTION_NAME="$SQL_INSTANCE",DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True \
               --quiet

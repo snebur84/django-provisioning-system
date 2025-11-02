@@ -99,7 +99,7 @@ jobs:
       - name: Executar Criação de Superuser do Cloud Run Job
         # Usamos o mesmo Job de migração para esta etapa.
         run: |
-          JOB_NAME_SUPERUSER="${{ vars.JOB_NAME }}-superuser"
+          JOB_NAME_SUPERUSER="${{ vars.SERVICE_NAME }}-superuser"
           IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
 
           # 1. Definir o comando de configuração (flags) em uma variável

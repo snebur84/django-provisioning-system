@@ -81,30 +81,30 @@ jobs:
       - name: Executar Job para Migrations
         uses: google-github-actions/run-cloud-run-job@v2 # <- CORREÇÃO 2: Nome da Ação com hifens
         with:
-        # ... O restante das suas configurações do job ...
-        job: ${{ vars.SERVICE_NAME }}-migrate
-        region: ${{ vars.REGION }}
-        # IMPORTANTE: Você precisa garantir que a variável image: ${{ env.IMAGE_URL }} seja
-        # passada do primeiro Job para este Job (usando 'outputs' e 'needs').
-        # Vou presumir que você corrigiu a passagem da variável.
-        image: ${{ steps.build_push.outputs.image_url }} # Corrigindo a passagem de variável
+          # ... O restante das suas configurações do job ...
+          job: ${{ vars.SERVICE_NAME }}-migrate
+          region: ${{ vars.REGION }}
+          # IMPORTANTE: Você precisa garantir que a variável image: ${{ env.IMAGE_URL }} seja
+          # passada do primeiro Job para este Job (usando 'outputs' e 'needs').
+          # Vou presumir que você corrigiu a passagem da variável.
+          image: ${{ steps.build_push.outputs.image_url }} # Corrigindo a passagem de variável
 
-        flags: |
-          --command python
-          --args manage.py,migrate,--noinput
-          --add-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }}
-          --service-account ${{ vars.SA_RUNTIME_EMAIL }}
-        env_vars: |
-          # --- SECRETS (SENHAS E CHAVES) ---
-          SECRET_KEY=${{ secrets.SECRET_KEY }} # Usando SECRET_KEY, não DJANGO_SECRET_KEY
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          MONGODB_URI=${{ secrets.MONGODB_URI }} # Adicionando MongoDB para ser completo
-          PROVISION_API_KEY=${{ secrets.PROVISION_API_KEY }}
+          flags: |
+            --command python
+            --args manage.py,migrate,--noinput
+            --add-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }}
+            --service-account ${{ vars.SA_RUNTIME_EMAIL }}
+          env_vars: |
+            # --- SECRETS (SENHAS E CHAVES) ---
+            SECRET_KEY=${{ secrets.SECRET_KEY }} # Usando SECRET_KEY, não DJANGO_SECRET_KEY
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            MONGODB_URI=${{ secrets.MONGODB_URI }} # Adicionando MongoDB para ser completo
+            PROVISION_API_KEY=${{ secrets.PROVISION_API_KEY }}
 
-          # --- VARS (CONFIGURAÇÃO) ---
-          CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }}
-          DB_NAME=${{ vars.DB_NAME }}
-          IS_CLOUD_RUN=True
+            # --- VARS (CONFIGURAÇÃO) ---
+            CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }}
+            DB_NAME=${{ vars.DB_NAME }}
+            IS_CLOUD_RUN=True
 
-        wait: true
+          wait: true

@@ -98,3 +98,30 @@ jobs:
           echo "3. Executando o Job..."
           # O comando de execução é o mais simples possível
           gcloud beta run jobs execute "$JOB_NAME" --region "$REGION" --wait --quiet
+      
+      - name: Executar Criação de Superuser do Cloud Run Job
+        run: |
+          JOB_NAME_SUPERUSER="${{ vars.JOB_NAME }}-superuser"
+          IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
+
+          # 1. Cria ou Atualiza o Job do Cloud Run
+          # O comando principal é 'python manage.py createsuperuser'
+          gcloud run jobs replace "${JOB_NAME_SUPERUSER}" \
+            --region "${{ vars.REGION }}" \
+            --image "${IMAGE_URL}" \
+            --set-env-vars SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},CLOUD_SQL_CONNECTION_NAME="${{ vars.CLOUD_SQL_CONNECTION_NAME }}",DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True \
+            
+            # 🚨 CORREÇÃO APLICADA: Mapeamento dos Secrets para as variáveis DJANGO_SUPERUSER_*
+            --set-secrets=DJANGO_SUPERUSER_PASSWORD=superuser_password:latest,DJANGO_SUPERUSER_USERNAME=superuser_username:latest \
+            
+            --command python \
+            --args manage.py,createsuperuser,--noinput,--email,admin@crcttec.com.br \
+            --set-cloudsql-instances "${{ vars.CLOUD_SQL_CONNECTION_NAME }}" \
+            --service-account=${{ vars.SA_RUNTIME_EMAIL }} \
+            --max-retries=3
+
+          # 2. Executa o Job e aguarda sua conclusão
+          echo "Executando Job de Criação de Superuser..."
+          gcloud run jobs execute "${JOB_NAME_SUPERUSER}" \
+            --region "${{ vars.REGION }}" \
+            --wait

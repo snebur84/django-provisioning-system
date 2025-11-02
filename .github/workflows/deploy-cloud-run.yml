@@ -52,8 +52,7 @@ jobs:
           region: ${{ vars.REGION }}
           image: ${{ steps.build_push.outputs.image_url }}
           service_account: ${{ vars.SA_RUNTIME_EMAIL }}
-          flags: --add-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }}
-          flags: --service-account=${{ vars.SA_RUNTIME_EMAIL }}
+          flags: --add-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} --service-account=${{ vars.SA_RUNTIME_EMAIL }}
           env_vars: |
             SECRET_KEY=${{ secrets.SECRET_KEY }}
             DB_USER=${{ secrets.DB_USER }}

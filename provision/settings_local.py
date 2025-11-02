@@ -13,7 +13,6 @@ try:
 except Exception:
     BASE_DIR = Path(__file__).resolve().parent.parent
 
-print(f"Using BASE_DIR: {BASE_DIR}")
 # =====================================================================
 # 1. CONFIGURAÇÕES BÁSICAS E DE AMBIENTE (LOCAL)
 # =====================================================================
@@ -108,7 +107,6 @@ DATABASES["default"]["CONN_MAX_AGE"] = int(os.getenv("DJANGO_CONN_MAX_AGE", 0))
 # Provide MONGODB_URI in the .env (recommended) e.g.:
 # MONGODB_URI=mongodb+srv://user:password@cluster0.xxxxxx.mongodb.net/provision_mongo?retryWrites=true&w=majority
 MONGODB_URI = os.getenv("MONGODB_URI", "").strip()
-print(f"Using MONGODB_URI: {MONGODB_URI}")
 
 if MONGODB_URI:
     parsed_uri = urlparse(MONGODB_URI)

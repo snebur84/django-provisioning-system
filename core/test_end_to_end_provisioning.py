@@ -18,7 +18,8 @@ def test_full_provision_flow(monkeypatch):
     monkeypatch.setattr(views, "get_template_from_mongo", lambda model, ext: {"template": "ACCEPT {{ identifier }}", "model": model, "extension": ext})
 
     ua = "Acme Model 1.2 accept-1"
-    resp = client.get("/api/download-xml/config.cfg", HTTP_USER_AGENT=ua, HTTP_X_API_KEY="accept-key")
+    # NOTE: include trailing slash to match api/urls.py pattern (Django will redirect otherwise)
+    resp = client.get("/api/download-xml/config.cfg/", HTTP_USER_AGENT=ua, HTTP_X_API_KEY="accept-key")
     assert resp.status_code == 200
     assert b"ACCEPT accept-1" in resp.content
     # basic header checks (Content-Disposition may be present)

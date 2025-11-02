@@ -1,5 +1,9 @@
 import pytest
-import api.views as views
+from types import SimpleNamespace
+
+# Testes para api.views.get_device_config — mocka _get_models para retornar um FakeDeviceConfig
+from importlib import import_module
+views = import_module("api.views")
 
 
 class DoesNotExist(Exception):
@@ -7,45 +11,54 @@ class DoesNotExist(Exception):
 
 
 class FakeObjects:
-    def __init__(self, by_mac=None, by_id=None):
-        self.by_mac = by_mac
-        self.by_id = by_id
+    def __init__(self, items):
+        self.items = items
 
     def get(self, **kwargs):
+        # aceita mac_address=norm and identifier=...
         if "mac_address" in kwargs:
-            if self.by_mac is None:
-                raise DoesNotExist()
-            return self.by_mac
+            mac = kwargs["mac_address"]
+            for it in self.items:
+                if it.get("mac_address") == mac:
+                    return SimpleNamespace(**it)
+            raise DoesNotExist
         if "identifier" in kwargs:
-            if self.by_id is None:
-                raise DoesNotExist()
-            return self.by_id
-        raise DoesNotExist()
+            identifier = kwargs["identifier"]
+            for it in self.items:
+                if it.get("identifier") == identifier:
+                    return SimpleNamespace(**it)
+            raise DoesNotExist
+        raise DoesNotExist
 
 
 class FakeDeviceConfig:
-    objects = None
+    # adicionar atributo DoesNotExist para simular API do ORM
+    DoesNotExist = DoesNotExist
+    objects = FakeObjects(
+        [
+            {"identifier": "dev-1", "mac_address": "aabbcc112233"},
+            {"identifier": "dev-2", "mac_address": "deadbeef"},
+        ]
+    )
 
 
-def test_get_device_config_by_mac(monkeypatch):
-    d = SimpleNamespace = type("SN", (), {})  # placeholder type creation
-    obj = object()
-    FakeDeviceConfig.objects = FakeObjects(by_mac=obj, by_id=None)
+@pytest.mark.parametrize(
+    "identifier,expected_identifier",
+    [
+        ("dev-1", "dev-1"),
+        ("aabb:cc:11:22:33", "dev-1"),  # mac with separators normalizes and matches first item
+    ],
+)
+def test_get_device_config_by_identifier(monkeypatch, identifier, expected_identifier):
+    # substituir o retorno de _get_models para usar FakeDeviceConfig
     monkeypatch.setattr(views, "_get_models", lambda: (FakeDeviceConfig, None, None))
-    res = views.get_device_config("AA:BB:CC:11:22:33")
-    assert res is obj
-
-
-def test_get_device_config_by_identifier(monkeypatch):
-    obj = object()
-    FakeDeviceConfig.objects = FakeObjects(by_mac=None, by_id=obj)
-    monkeypatch.setattr(views, "_get_models", lambda: (FakeDeviceConfig, None, None))
-    res = views.get_device_config("device-1")
-    assert res is obj
+    result = views.get_device_config(identifier)
+    assert result is not None
+    assert getattr(result, "identifier") == expected_identifier
 
 
 def test_get_device_config_handles_missing(monkeypatch):
-    FakeDeviceConfig.objects = FakeObjects(by_mac=None, by_id=None)
     monkeypatch.setattr(views, "_get_models", lambda: (FakeDeviceConfig, None, None))
-    res = views.get_device_config("device-unknown")
-    assert res is None
+    # identifier inexistente deve retornar None (e não lançar)
+    result = views.get_device_config("non-existent")
+    assert result is None

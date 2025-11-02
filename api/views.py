@@ -254,7 +254,7 @@ def download_config(request, filename: str = None):
     Endpoint de download de configuração (ajustado para usar modelo extraído do User-Agent).
 
     - Extrai vendor, model, version, identifier (MAC ou account) do User-Agent via parse_user_agent().
-      Exemplo de UA: "Ale H2P 2.10 3c28a60357a0" -> vendor='Ale', model='H2P', version='2.10', identifier='3c28a60357a0'
+      Exemplo de UA: "Ale H2P 2.10 aabbccddeeff" -> vendor='Ale', model='H2P', version='2.10', identifier='aabbccddeeff'
     - Normaliza model para lower() e usa get_template_from_mongo(model_lower, ext).
     - Normaliza mac (identifier) com _normalize_mac e busca DeviceConfig via get_device_config(identifier).
     - Prefere profile.template_ref quando presente (tentando versão original e lower-case).

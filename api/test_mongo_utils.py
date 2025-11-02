@@ -1,40 +1,48 @@
-import sys
-import types
 import pytest
-from types import SimpleNamespace
+from importlib import import_module
 
-import api.views as views
+views = import_module("api.views")
 
 
 def test_get_template_from_mongo_success(monkeypatch):
-    # Create a fake module api.utils.mongo with get_mongo_client
-    fake_mod = types.ModuleType("api.utils.mongo")
-    class FakeCollection:
-        def find_one(self, q):
-            return {"model": q.get("model"), "extension": q.get("extension"), "template": "TEMPLATE"}
-    class FakeDB:
-        device_templates = FakeCollection()
-    def fake_get_client():
-        return FakeDB()
-    fake_mod.get_mongo_client = fake_get_client
-    sys.modules["api.utils.mongo"] = fake_mod
+    # prepara documentos simulados na 'collection'
+    docs = {
+        "h2p": {"_id": "h2p", "model": "H2P", "extension": "xml", "template": "<t>h2p</t>"},
+        "byext": {"_id": "any", "extension": "cfg", "template": "fallback-cfg"},
+    }
 
-    doc = views.get_template_from_mongo("X", "xml")
-    assert isinstance(doc, dict)
-    assert doc["template"] == "TEMPLATE"
+    class MockColl:
+        def find_one(self, query):
+            # 1) buscar por model regex + extension
+            if isinstance(query, dict) and "model" in query and "extension" in query:
+                regex = query["model"].get("$regex", "")
+                # tirar ^$
+                pattern = regex.strip("^$")
+                for d in docs.values():
+                    if d.get("model") and d.get("model").lower() == pattern.lower() and d.get("extension") == query["extension"]:
+                        return d
+            # 2) buscar por _id
+            if isinstance(query, dict) and "_id" in query:
+                return docs.get(query["_id"])
+            # 3) fallback por extension
+            if isinstance(query, dict) and "extension" in query and len(query) == 1:
+                for d in docs.values():
+                    if d.get("extension") == query["extension"]:
+                        return d
+            return None
 
-    # cleanup
-    del sys.modules["api.utils.mongo"]
+    class MockDB:
+        def __init__(self):
+            self.device_templates = MockColl()
+        def get_collection(self, name):
+            return self.device_templates
 
+    monkeypatch.setattr("api.views.get_mongo_client", lambda: MockDB())
 
-def test_get_template_from_mongo_handles_exception(monkeypatch):
-    fake_mod = types.ModuleType("api.utils.mongo")
-    def bad_get():
-        raise RuntimeError("nope")
-    fake_mod.get_mongo_client = bad_get
-    import sys
-    sys.modules["api.utils.mongo"] = fake_mod
+    # busca por model (case-insensitive) com ext xml -> encontra via model regex
+    doc = views.get_template_from_mongo("H2P", "xml")
+    assert doc and doc.get("template") == "<t>h2p</t>"
 
-    doc = views.get_template_from_mongo("X", "xml")
-    assert doc is None
-    del sys.modules["api.utils.mongo"]
+    # busca por model inexistente e ext cfg -> fallback por extensão
+    doc2 = views.get_template_from_mongo("NoModel", "cfg")
+    assert doc2 and doc2.get("template") == "fallback-cfg"

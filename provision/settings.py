@@ -11,11 +11,10 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --- Detecção e Variáveis Críticas ---
-# CORREÇÃO: Usa 'K_SERVICE' para detectar se está rodando no ambiente Cloud Run
-IS_CLOUD_RUN_PRODUCTION = os.getenv("K_SERVICE") is not None or os.getenv("IS_CLOUD_RUN") == "True"
+# CORREÇÃO: Usa 'K_SERVICE' ou 'IS_CLOUD_RUN' para detecção robusta
+IS_CLOUD_RUN_PRODUCTION = os.getenv("IS_CLOUD_RUN") == "True" or os.getenv("K_SERVICE") is not None
 
 # Secrets e Debug
-# Usamos SECRET_KEY para consistência com as práticas de ambiente
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-development")
 DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1" and not IS_CLOUD_RUN_PRODUCTION
 
@@ -122,7 +121,7 @@ if IS_CLOUD_RUN_PRODUCTION and CLOUD_SQL_CONNECTION_NAME:
             "HOST": 'localhost', # Host ignorado pelo socket
             "OPTIONS": {
                 "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-                # CORREÇÃO CRÍTICA: Conexão via socket Unix do Cloud SQL Proxy
+                # Conexão via socket Unix do Cloud SQL Proxy
                 "unix_socket": f"/cloudsql/{CLOUD_SQL_CONNECTION_NAME}", 
             }
         }
@@ -147,35 +146,12 @@ else:
     }
 
 # --- MongoDB (Atlas) ---
-#MONGODB_URI = os.getenv("MONGODB_URI") 
+# DEBUG CRÍTICO: Isola o MongoDB como causa da falha de inicialização.
 MONGODB = {}
-
-#if MONGODB_URI:
-#    # Conexão via URI completa (padrão para MongoDB Atlas)
-#    parsed_uri = urlparse(MONGODB_URI)
-#    
-#    MONGODB = {
-#        "URI": MONGODB_URI,
-#        "HOST": parsed_uri.hostname,
-#        "PORT": parsed_uri.port or 27017,
-#        "DB_NAME": os.getenv("MONGODB_DB_NAME", parsed_uri.path.strip('/') or "provision_mongo"),
-#        "USER": parsed_uri.username,
-#        "PASSWORD": parsed_uri.password,
-#    }
-#else:
-#    # Fallback para Localhost
-#    MONGODB = {
-#        "HOST": os.getenv("MONGODB_HOST", "localhost"),
-#        "PORT": int(os.getenv("MONGODB_PORT", 27017)),
-#        "DB_NAME": os.getenv("MONGODB_DB_NAME", "provision_mongo"),
-#        "USER": os.getenv("MONGODB_USER", ""),
-#        "PASSWORD": os.getenv("MONGODB_PASSWORD", ""),
-#    }
-
 
 # --- Arquivos Estáticos e de Mídia (GCS) ---
 
-# Usa a detecção robusta de ambiente K_SERVICE
+# Usa a detecção robusta de ambiente
 if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
     # Produção: Usar Google Cloud Storage (GCS)
     

@@ -8,19 +8,25 @@ from urllib.parse import urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# --- Variáveis Críticas ---
-# Variável para determinar o ambiente de produção (injetada no Cloud Run)
-IS_CLOUD_RUN_PRODUCTION = os.getenv("CLOUD_SQL_INSTANCE_CONNECTION_NAME")
+# --- Detecção e Variáveis Críticas ---
+# CORREÇÃO: Usa 'K_SERVICE' para detectar se está rodando no ambiente Cloud Run
+IS_CLOUD_RUN_PRODUCTION = os.getenv("K_SERVICE") is not None
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "change-me-in-development")
-DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
+# Secrets e Debug
+# Usamos SECRET_KEY para consistência com as práticas de ambiente
+SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-development")
+DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1" and not IS_CLOUD_RUN_PRODUCTION
 
-# Adiciona o domínio padrão do Cloud Run (*.run.app) e domínios customizados
+# Hosts permitidos
 ALLOWED_HOSTS = [
     h.strip()
     for h in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,*.run.app").split(",")
     if h.strip()
 ]
+# Opcional: Adiciona o domínio interno do Cloud Run para saúde e comunicação interna
+if IS_CLOUD_RUN_PRODUCTION and os.getenv('K_SERVICE'):
+    ALLOWED_HOSTS.append(f"{os.getenv('K_SERVICE')}-{os.getenv('K_REVISION')}.{os.getenv('K_SERVICE')}.svc.cluster.local")
+
 
 # --- Definição de Aplicação ---
 INSTALLED_APPS = [
@@ -31,14 +37,14 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "django.contrib.sites",
+    "django.contrib.sites", # Necessário para Allauth
 
     # Third party
     "rest_framework",
     "drf_spectacular",
     "oauth2_provider",
 
-    # NOVO: Necessário para usar Google Cloud Storage
+    # Google Cloud Storage
     'storages', 
 
     # Aplicativos Allauth
@@ -61,12 +67,13 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    'allauth.account.middleware.AccountMiddleware',
+    'allauth.account.middleware.AccountMiddleware', # Allauth middleware
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
 ROOT_URLCONF = "provision.urls"
+WSGI_APPLICATION = "provision.wsgi.application" # Seu módulo WSGI principal
 
 TEMPLATES = [
     {
@@ -84,51 +91,57 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "provision.wsgi.application"
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
 # =====================================================================
 # 2. CONFIGURAÇÃO DE BANCOS DE DADOS E PERSISTÊNCIA
 # =====================================================================
 
-# --- MySQL (Cloud SQL) ---
-if IS_CLOUD_RUN_PRODUCTION:
-    # Perfil de Produção: Conexão via Unix Socket (Recomendado para Cloud Run)
-    CLOUD_SQL_CONNECTION_NAME = os.getenv("CLOUD_SQL_INSTANCE_CONNECTION_NAME")
+# --- Variáveis de Conexão (Unificadas para o Workflow YAML) ---
+DB_ENGINE = os.getenv("DJANGO_DB_ENGINE", "django.db.backends.mysql")
+DB_NAME = os.getenv("DB_NAME", "provision_db")
+DB_USER = os.getenv("DB_USER", "provision_user")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "changeme")
+DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
+DB_PORT = os.getenv("DB_PORT", "3306")
+CLOUD_SQL_CONNECTION_NAME = os.getenv("CLOUD_SQL_CONNECTION_NAME") # Injetada pelo Workflow
 
+# --- MySQL (Cloud SQL / Local) ---
+if IS_CLOUD_RUN_PRODUCTION and CLOUD_SQL_CONNECTION_NAME:
+    # Perfil de Produção: Conexão Cloud SQL via Unix Socket
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.mysql",
-            "NAME": os.getenv("MYSQL_DATABASE"),
-            "USER": os.getenv("MYSQL_USER"),
-            "PASSWORD": os.getenv("MYSQL_PASSWORD"),
-            "HOST": 'localhost', # Ignorado no socket
+            "ENGINE": DB_ENGINE, 
+            "NAME": DB_NAME,
+            "USER": DB_USER,
+            "PASSWORD": DB_PASSWORD,
+            "HOST": 'localhost', # Host ignorado pelo socket
             "OPTIONS": {
                 "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-                # O Cloud Run monta o socket neste caminho
-                "unix_socket": f"/cloudsql/{CLOUD_SQL_CONNECTION_NAME}",
+                # CORREÇÃO CRÍTICA: Conexão via socket Unix do Cloud SQL Proxy
+                "unix_socket": f"/cloudsql/{CLOUD_SQL_CONNECTION_NAME}", 
             }
         }
     }
-    # Persistência de conexões ajuda a reduzir cold starts
+    # Otimização: manter conexões ativas no ambiente serverless
     DATABASES["default"]["CONN_MAX_AGE"] = int(os.getenv("DJANGO_CONN_MAX_AGE", 60))
 
 else:
-    # Perfil de Desenvolvimento Local
+    # Perfil de Desenvolvimento Local / MySQL Local (Lê diretamente as vars DB_)
     DATABASES = {
         "default": {
-            "ENGINE": os.getenv("DJANGO_DB_ENGINE", "django.db.backends.mysql"),
-            "NAME": os.getenv("MYSQL_DATABASE", os.getenv("DJANGO_DB_NAME", "provision_db")),
-            "USER": os.getenv("MYSQL_USER", os.getenv("DJANGO_DB_USER", "provision_user")),
-            "PASSWORD": os.getenv("MYSQL_PASSWORD", os.getenv("DJANGO_DB_PASSWORD", "changeme")),
-            "HOST": os.getenv("MYSQL_HOST", "127.0.0.1"),
-            "PORT": os.getenv("MYSQL_PORT", "3306"),
+            "ENGINE": DB_ENGINE, 
+            "NAME": DB_NAME,
+            "USER": DB_USER,
+            "PASSWORD": DB_PASSWORD,
+            "HOST": DB_HOST,
+            "PORT": DB_PORT,
             "OPTIONS": {
                 "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
             },
         }
     }
-
 
 # --- MongoDB (Atlas) ---
 MONGODB_URI = os.getenv("MONGODB_URI") 
@@ -141,7 +154,6 @@ if MONGODB_URI:
         "URI": MONGODB_URI,
         "HOST": parsed_uri.hostname,
         "PORT": parsed_uri.port or 27017,
-        # Tenta obter o nome do DB da URI ou usa uma variável de ambiente
         "DB_NAME": os.getenv("MONGODB_DB_NAME", parsed_uri.path.strip('/') or "provision_mongo"), 
         "USER": parsed_uri.username,
         "PASSWORD": parsed_uri.password,
@@ -158,6 +170,7 @@ else:
 
 
 # --- Arquivos Estáticos e de Mídia (GCS) ---
+# Usa a detecção robusta de ambiente K_SERVICE
 if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
     # Produção: Usar Google Cloud Storage (GCS)
     
@@ -173,19 +186,16 @@ if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
     
     GS_BUCKET_NAME = os.getenv("GS_BUCKET_NAME")
     
-    # URL de acesso ao bucket (garantir que o bucket seja público ou que a autenticação esteja correta)
+    # URL de acesso ao bucket
     STATIC_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/static/"
     MEDIA_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/media/"
     
-    STATIC_ROOT = None # Não é mais necessário no sistema de arquivos local
+    STATIC_ROOT = None 
     
 else:
     # Desenvolvimento Local: Uso do sistema de arquivos local
     STATIC_URL = "/static/"
     STATIC_ROOT = BASE_DIR / "staticfiles"
-    
-
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
 # =====================================================================
@@ -263,6 +273,7 @@ SPECTACULAR_SETTINGS = {
 }
 
 OAUTH2_PROVIDER = {
+    # Tempo de expiração reduzido para forçar a renovação, se necessário (padrão é 36000)
     "ACCESS_TOKEN_EXPIRE_SECONDS": int(os.getenv("OAUTH_ACCESS_TOKEN_EXPIRE", 3600)),
     "REFRESH_TOKEN_EXPIRE_SECONDS": int(os.getenv("OAUTH_REFRESH_TOKEN_EXPIRE", 60 * 60 * 24 * 30)),
     "ROTATE_REFRESH_TOKEN": True,
@@ -277,7 +288,7 @@ OAUTH2_PROVIDER = {
 PROVISION_API_KEY = os.getenv("PROVISION_API_KEY", "")
 
 
-# --- Configurações de Segurança e Outros ---
+# --- Configurações de Segurança e Cloud Run ---
 if not DEBUG and IS_CLOUD_RUN_PRODUCTION:
     # Cloud Run usa HTTPS, forçamos cookies seguros
     SESSION_COOKIE_SECURE = True
@@ -288,11 +299,11 @@ if not DEBUG and IS_CLOUD_RUN_PRODUCTION:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     
-    # Cloud Run/Load Balancer enviam este cabeçalho
+    # Configuração crucial: Cloud Run/Load Balancer enviam este cabeçalho
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 else:
-    # Configurações de segurança para ambiente local (podem ser substituídas por ENV)
+    # Configurações de segurança para ambiente local
     SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "0") == "1"
     CSRF_COOKIE_SECURE = os.getenv("CSRF_COOKIE_SECURE", "0") == "1"
     SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "0"))

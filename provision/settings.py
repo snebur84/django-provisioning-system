@@ -1,7 +1,9 @@
 import os
+import logging
 from pathlib import Path
 from urllib.parse import urlparse
 
+logger = logging.getLogger(__name__)
 # =====================================================================
 # 1. CONFIGURAÇÕES BÁSICAS E DE AMBIENTE
 # =====================================================================
@@ -110,6 +112,7 @@ CLOUD_SQL_CONNECTION_NAME = os.getenv("CLOUD_SQL_CONNECTION_NAME")
 # --- MySQL (Cloud SQL / Local) ---
 if IS_CLOUD_RUN_PRODUCTION and CLOUD_SQL_CONNECTION_NAME:
     # Perfil de Produção: Conexão Cloud SQL via Unix Socket
+    logger.error(f"DEBUG: Tentando conectar ao socket UNIX em: /cloudsql/{CLOUD_SQL_CONNECTION_NAME}")
     DATABASES = {
         "default": {
             "ENGINE": DB_ENGINE, 

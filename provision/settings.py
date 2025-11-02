@@ -26,9 +26,20 @@ ALLOWED_HOSTS = [
 ]
 
 # 2. Adicionar o domínio personalizado
-ALLOWED_HOSTS.append("crcttec.com.br")
+ALLOWED_HOSTS.append("*.crcttec.com.br")
 ALLOWED_HOSTS.append("www.crcttec.com.br")
-ALLOWED_HOSTS.append("run.app")
+ALLOWED_HOSTS.append(".run.app")
+
+from django.core.management.utils import get_random_secret_key # Importação necessária para o shell
+try:
+    from django.conf import settings
+    # Captura o host dinâmico se a aplicação estiver rodando
+    if 'HTTP_HOST' in os.environ:
+        host_header = os.environ['HTTP_HOST']
+        if host_header not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(host_header)
+except Exception:
+    pass
 
 # Opcional: Adiciona o domínio interno do Cloud Run para saúde e comunicação interna
 if IS_CLOUD_RUN_PRODUCTION and os.getenv('K_SERVICE'):

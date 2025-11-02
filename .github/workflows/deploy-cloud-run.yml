@@ -65,12 +65,15 @@ jobs:
             IS_CLOUD_RUN=True
             GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }}
 
-      - name: Configurar Job de Migração
+      - name: Configurar e Criar Job de Migração
         run: |
           IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
           
-          # Este comando define o template do job com todas as configs (imagem, envs, comando)
-          gcloud beta run jobs update ${{ vars.SERVICE_NAME }}-migrate \
+          echo "Aplicando Job Template de Migração..."
+          
+          # 🚨 CORREÇÃO ESSENCIAL: Usando 'apply' e quebras de linha com '\'
+          # 'apply' garante que ele será criado ou atualizado.
+          gcloud beta run jobs apply provision-web-service-migrate \
             --region ${{ vars.REGION }} \
             --image "$IMAGE_URL" \
             --command python \
@@ -84,7 +87,8 @@ jobs:
         run: |
           echo "Disparando Job de Migração..."
           
-          # Agora apenas executamos o job que acabamos de configurar
-          gcloud beta run jobs execute ${{ vars.SERVICE_NAME }}-migrate \
+          # O comando execute deve ser o mais simples possível
+          gcloud beta run jobs execute provision-web-service-migrate \
             --region ${{ vars.REGION }} \
-            --wait --quiet
+            --wait \
+            --quiet

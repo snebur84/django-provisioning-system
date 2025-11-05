@@ -203,19 +203,22 @@ if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
     
     # 2. Carrega as credenciais Base64 injetadas pelo CI/CD
     # O nome da variável no CI/CD DEVE ser GCS_SA_KEY_B64
-    GCS_SA_KEY_B64 = os.getenv("GCS_SA_KEY_B64") # 🚨 NOME DA VARIÁVEL DE AMBIENTE 🚨
+    GCS_SA_KEY_B64 = os.getenv("GCS_SA_KEY_B64")
     GS_CREDENTIALS = None
     
     if GCS_SA_KEY_B64:
+        logger.info("Credencial GCS (Base64) encontrada. Tentando decodificar...")
         try:
             # 2a. Decodifica Base64 -> Texto JSON multilinha
             GCS_SA_KEY_JSON_RAW = base64.b64decode(GCS_SA_KEY_B64).decode('utf-8')
             
             # 2b. Carrega o JSON para o objeto Python
             GS_CREDENTIALS = json.loads(GCS_SA_KEY_JSON_RAW)
+            logger.info("Chave GCS decodificada e carregada com sucesso.")
+            
         except Exception as e:
-            # Loga qualquer erro durante a decodificação ou carregamento do JSON
             logger.error(f"Erro CRÍTICO ao processar chave GCS (Base64/JSON): {e}")
+            logger.error(f"Valor Base64 (Primeiros 100 caracteres): {GCS_SA_KEY_B64[:100]}...")
     
     # ----------------------------------------------------
     

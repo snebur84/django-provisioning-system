@@ -258,7 +258,7 @@ else:
 # --- Autenticação e Allauth ---
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
-    'allauth.account.auth_backends.AuthenticationAuthenticationBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
 LOGIN_REDIRECT_URL = os.getenv("LOGIN_REDIRECT_URL", "/")

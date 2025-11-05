@@ -197,34 +197,39 @@ if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
     
     GS_BUCKET_NAME = os.getenv("GS_BUCKET_NAME")
     
+    # Adicione GS_QUERYSTRING_AUTH = False para desativar o URL signing
+    # Isso resolve o 'AttributeError: you need a private key' na maioria das versões mais antigas/médias
+    GS_QUERYSTRING_AUTH = False  # <--- NOVA CORREÇÃO GLOBAL
+    
     # Define os backends de armazenamento para Django 4.2+
     STORAGES = {
         "default": {
             "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
             "OPTIONS": {
+                # Não colocamos 'url_signer' aqui para evitar o erro 'Invalid setting'
                 "bucket_name": GS_BUCKET_NAME,
-                # 🚨 CORREÇÃO CRÍTICA: Desativa a assinatura de URL 
-                # (previne o 'AttributeError: you need a private key to sign credentials')
-                "url_signer": False,  
             },
         },
         "staticfiles": {
             "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
             "OPTIONS": {
+                # Não colocamos 'url_signer' aqui para evitar o erro 'Invalid setting'
                 "bucket_name": GS_BUCKET_NAME,
-                # 🚨 CORREÇÃO CRÍTICA: Desativa a assinatura de URL
-                "url_signer": False,  
             },
         },
     }
-    
-    # NOTA: Não é necessário GS_URL_SIGNER = False na raiz. O OPTIONS resolve.
     
     STATIC_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/static/"
     MEDIA_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/media/"
     
     STATICFILES_DIRS = [BASE_DIR / "static"] 
     STATIC_ROOT = None
+    
+else:
+    # Desenvolvimento Local/Build do Docker: Uso do sistema de arquivos local
+    STATIC_URL = "/static/"
+    STATIC_ROOT = BASE_DIR / "staticfiles"
+    STATICFILES_DIRS = [BASE_DIR / "static"]
     
 else:
     # Desenvolvimento Local/Build do Docker: Uso do sistema de arquivos local

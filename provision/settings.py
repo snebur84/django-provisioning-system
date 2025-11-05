@@ -1,7 +1,6 @@
 import os
 import logging
-import json 
-import base64 # 🚨 IMPORT NECESSÁRIO PARA DECODIFICAÇÃO BASE64 🚨
+import json
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -195,30 +194,25 @@ else:
 if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
     
     GS_BUCKET_NAME = os.getenv("GS_BUCKET_NAME")
-    
-    # 🚨 CONFIGURAÇÃO DE SEGURANÇA GCS (URL ASSINADA) 🚨
-    
-    # 1. Ativa a assinatura de URL
+     
+    # 1. Ativa a assinatura de URL (exige credenciais com chave privada)
     GS_QUERYSTRING_AUTH = True 
     
-    # 2. Carrega as credenciais Base64 injetadas pelo CI/CD
-    # O nome da variável no CI/CD DEVE ser GCS_SA_KEY_B64
-    GCS_SA_KEY_B64 = os.getenv("GCS_SA_KEY_B64")
+    # 2. Carrega as credenciais injetadas do Secret Manager (Cloud Run injeta o JSON direto)
+    # O nome da variável de ambiente no Cloud Run DEVE ser GCS_SA_KEY_B64
+    GCS_SA_KEY_JSON = os.getenv("GCS_SA_KEY_B64")
     GS_CREDENTIALS = None
     
-    if GCS_SA_KEY_B64:
-        logger.info("Credencial GCS (Base64) encontrada. Tentando decodificar...")
+    if GCS_SA_KEY_JSON:
+        logger.info("Credencial GCS (JSON) encontrada. Tentando carregar...")
         try:
-            # 2a. Decodifica Base64 -> Texto JSON multilinha
-            GCS_SA_KEY_JSON_RAW = base64.b64decode(GCS_SA_KEY_B64).decode('utf-8')
-            
-            # 2b. Carrega o JSON para o objeto Python
-            GS_CREDENTIALS = json.loads(GCS_SA_KEY_JSON_RAW)
-            logger.info("Chave GCS decodificada e carregada com sucesso.")
-            
-        except Exception as e:
-            logger.error(f"Erro CRÍTICO ao processar chave GCS (Base64/JSON): {e}")
-            logger.error(f"Valor Base64 (Primeiros 100 caracteres): {GCS_SA_KEY_B64[:100]}...")
+            # 2a. Carrega o JSON para o objeto Python (Sem decodificação Base64!)
+            GS_CREDENTIALS = json.loads(GCS_SA_KEY_JSON)
+            logger.info("Chave GCS carregada com sucesso do Secret.")
+        except json.JSONDecodeError as e:
+            # Mantemos o log de erro caso o Secret Manager injete algo inválido
+            logger.error(f"Erro CRÍTICO ao decodificar JSON da chave GCS: {e}")
+            logger.error(f"Valor JSON (Primeiros 100 caracteres): {GCS_SA_KEY_JSON[:100]}...")
     
     # ----------------------------------------------------
     

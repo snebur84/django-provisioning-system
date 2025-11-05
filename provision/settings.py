@@ -195,18 +195,30 @@ else:
 if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
     # Produção: Usar Google Cloud Storage (GCS)
     
+    GS_BUCKET_NAME = os.getenv("GS_BUCKET_NAME")
+    
     # Define os backends de armazenamento para Django 4.2+
     STORAGES = {
         "default": {
             "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
+            "OPTIONS": {
+                "bucket_name": GS_BUCKET_NAME,
+                # 🚨 CORREÇÃO CRÍTICA: Desativa a assinatura de URL 
+                # (previne o 'AttributeError: you need a private key to sign credentials')
+                "url_signer": False,  
+            },
         },
         "staticfiles": {
             "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
+            "OPTIONS": {
+                "bucket_name": GS_BUCKET_NAME,
+                # 🚨 CORREÇÃO CRÍTICA: Desativa a assinatura de URL
+                "url_signer": False,  
+            },
         },
     }
     
-    GS_BUCKET_NAME = os.getenv("GS_BUCKET_NAME")
-    GS_URL_SIGNER = False
+    # NOTA: Não é necessário GS_URL_SIGNER = False na raiz. O OPTIONS resolve.
     
     STATIC_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/static/"
     MEDIA_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/media/"

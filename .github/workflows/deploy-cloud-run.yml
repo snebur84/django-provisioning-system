@@ -46,15 +46,16 @@ jobs:
           docker push $IMAGE_URL
           echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
 
-      # --- 3. INJEÇÃO DE SECRETS (CHAVE GCS) ---
+      # 3. INJEÇÃO DE SECRETS (CHAVE GCS) ---
       - name: 🔑 Obter Chave Privada do GCS do Secret Manager
         id: get_gcs_secret
-        # O Secret GCS_SA_KEY_JSON contém a chave privada em JSON (Passo 1)
+        # O valor bruto do JSON da chave privada
         run: |
-          # O valor bruto do JSON da chave privada
-          GCS_SECRET_VALUE=$(gcloud secrets versions access latest --secret=GCS_SA_KEY_JSON --project=${{ vars.PROJECT_ID }})
-          # Exporta o valor para ser usado nos próximos steps
-          echo "GCS_SECRET_VALUE=$GCS_SECRET_VALUE" >> $GITHUB_OUTPUT
+          # 🚨 CORREÇÃO: Codifica o JSON em Base64 para ser tratado como uma única string.
+          GCS_SECRET_B64=$(gcloud secrets versions access latest --secret=GCS_SA_KEY_JSON --project=${{ vars.PROJECT_ID }} | base64 -w 0)
+          
+          # Salva a string Base64 codificada na variável de saída
+          echo "GCS_SECRET_B64=$GCS_SECRET_B64" >> $GITHUB_OUTPUT
 
       # --- 4. EXECUÇÃO DE JOBS (MIGRATE, COLLECTSTATIC, SUPERUSER) ---
       

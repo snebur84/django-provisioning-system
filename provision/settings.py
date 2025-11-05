@@ -1,5 +1,6 @@
 import os
 import logging
+import json # Importação para carregar o JSON da chave GCS
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -193,17 +194,25 @@ else:
 
 # Usa a detecção robusta de ambiente
 if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
-    # Produção: Usar Google Cloud Storage (GCS)
     
     GS_BUCKET_NAME = os.getenv("GS_BUCKET_NAME")
     
-    # 🚨 SOLUÇÃO DE AUTENTICAÇÃO GCS NO CLOUD RUN 🚨
-    # 1. Torna os arquivos publicamente legíveis por padrão (evita a necessidade de autenticação)
-    GS_DEFAULT_ACL = 'public-read'
+    # 🚨 CONFIGURAÇÃO DE SEGURANÇA GCS (URL ASSINADA) 🚨
     
-    # 2. Desativa a autenticação via query string (que usa chaves privadas)
-    # Isso resolve o 'AttributeError: you need a private key to sign credentials'
-    GS_QUERYSTRING_AUTH = False
+    # 1. Ativa a assinatura de URL (necessário quando o bucket não é público e previne AccessDenied)
+    GS_QUERYSTRING_AUTH = True 
+    
+    # 2. Carrega as credenciais do Secret Manager injetadas no ambiente (GCS_SA_KEY_JSON)
+    GCS_SA_KEY_JSON = os.getenv("GCS_SA_KEY_JSON")
+    GS_CREDENTIALS = None
+    
+    if GCS_SA_KEY_JSON:
+        try:
+            # Tenta decodificar o conteúdo JSON injetado pelo Cloud Run/CI/CD
+            GS_CREDENTIALS = json.loads(GCS_SA_KEY_JSON)
+        except json.JSONDecodeError:
+            # Loga o erro se o Secret estiver mal formatado
+            logger.error("Erro ao decodificar GCS_SA_KEY_JSON. Verifique o formato do Secret.")
     
     # ----------------------------------------------------
     
@@ -212,24 +221,25 @@ if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
         "default": {
             "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
             "OPTIONS": {
-                # O OPTIONS é usado apenas para passar o nome do bucket, evitando 'Invalid setting'
-                "bucket_name": GS_BUCKET_NAME, 
+                "bucket_name": GS_BUCKET_NAME,
+                # 3. Injeta a chave JSON decodificada (resolve o 'AttributeError: you need a private key')
+                "credentials": GS_CREDENTIALS, 
             },
         },
         "staticfiles": {
             "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
             "OPTIONS": {
                 "bucket_name": GS_BUCKET_NAME,
+                "credentials": GS_CREDENTIALS,
             },
         },
     }
     
-    # IMPORTANTE: STATIC_ROOT é necessário se você rodar collectstatic
-    STATIC_ROOT = BASE_DIR / "staticfiles_collected" 
-    
+    # As URLs continuam apontando para o GCS
     STATIC_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/static/"
     MEDIA_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/media/"
     STATICFILES_DIRS = [BASE_DIR / "static"] 
+    STATIC_ROOT = BASE_DIR / "staticfiles_collected" # Necessário para o collectstatic
     
 else:
     # Desenvolvimento Local/Build do Docker: Uso do sistema de arquivos local

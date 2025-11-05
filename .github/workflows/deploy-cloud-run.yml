@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-and-deploy:
-    name: Build, Push e Deploy
+    name: Build, Push, Jobs e Deploy
     runs-on: ubuntu-latest
     permissions:
       contents: 'read'
@@ -19,41 +19,131 @@ jobs:
       - name: Checkout do Código
         uses: actions/checkout@v4
 
-      - name: Autenticar no GCP
+      # --- 1. AUTENTICAÇÃO E SETUP ---
+      - name: 🔐 Autenticar no GCP
         id: auth
+        # Usar secrets.GCP_SA_KEY requer que essa chave tenha as permissões (Deployer/Secret Accessor)
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }} 
 
-      - name: Configurar gcloud e Docker
+      - name: 🛠️ Configurar gcloud e Docker
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ vars.PROJECT_ID }}
-          install_components: 'beta'
+          install_components: 'beta' # Componentes beta são necessários para Cloud Run Jobs
 
       - name: Configurar Docker para Artifact Registry (GAR)
         run: gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev
 
-      - name: Construir e Enviar Imagem
+      # --- 2. BUILD E PUSH ---
+      - name: 📦 Construir e Enviar Imagem
         id: build_push
         run: |
-          # URL da Imagem construída com Variáveis do Repositório
           IMAGE_URL="${{ vars.REGION }}-docker.pkg.dev/${{ vars.PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/${{ vars.SERVICE_NAME }}:${{ github.sha }}"
           echo "Building and pushing $IMAGE_URL"
           docker build -t $IMAGE_URL .
           docker push $IMAGE_URL
-
-          # Salva a URL para o próximo Job
           echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
 
-      - name: Deploy no Cloud Run (Serviço principal)
+      # --- 3. INJEÇÃO DE SECRETS (CHAVE GCS) ---
+      - name: 🔑 Obter Chave Privada do GCS do Secret Manager
+        id: get_gcs_secret
+        # O Secret GCS_SA_KEY_JSON contém a chave privada em JSON (Passo 1)
+        run: |
+          # O valor bruto do JSON da chave privada
+          GCS_SECRET_VALUE=$(gcloud secrets versions access latest --secret=GCS_SA_KEY_JSON --project=${{ vars.PROJECT_ID }})
+          # Exporta o valor para ser usado nos próximos steps
+          echo "GCS_SECRET_VALUE=$GCS_SECRET_VALUE" >> $GITHUB_OUTPUT
+
+      # --- 4. EXECUÇÃO DE JOBS (MIGRATE, COLLECTSTATIC, SUPERUSER) ---
+      
+      # Step A: Executar Migrations (DEVE vir primeiro)
+      - name: ⚙️ Executar Migrations
+        shell: bash
+        run: |
+          IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
+          JOB_NAME="${{ vars.SERVICE_NAME }}-migrate"
+          # Inclui GS_BUCKET_NAME e GCS_SA_KEY_JSON na string de variáveis
+          ENV_VARS="SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},MONGODB_URI=${{ secrets.MONGODB_URI }},CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True,GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }},GCS_SA_KEY_JSON=${{ steps.get_gcs_secret.outputs.GCS_SECRET_VALUE }}"
+          
+          echo "1. Tentando criar/atualizar o Job de Migração..."
+          # Update é mais confiável que create, mas o || true é mantido para robustez
+          gcloud beta run jobs update "$JOB_NAME" \
+            --region ${{ vars.REGION }} \
+            --image $IMAGE_URL \
+            --command python \
+            --args manage.py,migrate,--noinput \
+            --set-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} \
+            --service-account ${{ vars.SA_RUNTIME_EMAIL }} \
+            --update-env-vars "$ENV_VARS" \
+            --quiet || true
+
+          echo "2. Executando o Job de Migração..."
+          gcloud beta run jobs execute "$JOB_NAME" --region ${{ vars.REGION }} --wait --quiet
+          echo "Migrações concluídas."
+
+      # Step B: Executar Collectstatic (DEVE vir antes do Deploy principal)
+      - name: 🖼️ Executar Collectstatic (Upload de CSS/JS para GCS)
+        run: |
+          JOB_NAME_STATIC="${{ vars.SERVICE_NAME }}-collectstatic"
+          IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
+          
+          # Inclui GCS_SA_KEY_JSON para que o Job possa assinar a requisição de upload
+          ENV_VARS_STATIC="CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True,GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }},GCS_SA_KEY_JSON=${{ steps.get_gcs_secret.outputs.GCS_SECRET_VALUE }}"
+          
+          echo "1. Atualizando o Job de Collectstatic..."
+          gcloud run jobs update "${JOB_NAME_STATIC}" \
+            --region ${{ vars.REGION }} \
+            --image ${IMAGE_URL} \
+            --command /usr/local/bin/python \
+            --args manage.py,collectstatic,--noinput \
+            --set-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} \
+            --set-env-vars ${ENV_VARS_STATIC} \
+            --service-account ${{ vars.SA_RUNTIME_EMAIL }} \
+            --quiet || true # Cria se não existir
+
+          echo "2. Executando o Collectstatic Job..."
+          gcloud run jobs execute "${JOB_NAME_STATIC}" --region ${{ vars.REGION }} --wait --quiet
+          echo "Collectstatic Job concluído."
+          
+      # Step C: Executar Criação de Superuser (Pode vir por último antes do deploy)
+      - name: 👤 Executar Criação de Superuser
+        run: |
+          JOB_NAME_SUPERUSER="${{ vars.SERVICE_NAME }}-superuser"
+          IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
+          
+          # Variáveis para o Superuser Job (Pode precisar de credenciais DB/GCS dependendo do código)
+          ENV_VARS_SUPERUSER="CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True,GCS_SA_KEY_JSON=${{ steps.get_gcs_secret.outputs.GCS_SECRET_VALUE }}"
+
+          echo "1. Atualizando o Job de Superuser..."
+          gcloud run jobs update "${JOB_NAME_SUPERUSER}" \
+            --region ${{ vars.REGION }} \
+            --image ${IMAGE_URL} \
+            --command python \
+            --args manage.py,createsuperuser,--noinput \
+            --set-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} \
+            --set-secrets=DJANGO_SUPERUSER_PASSWORD=superuser_password:latest,DJANGO_SUPERUSER_USERNAME=superuser_username:latest \
+            --set-env-vars ${ENV_VARS_SUPERUSER} \
+            --quiet || true
+          
+          echo "2. Executando Job de Criação de Superuser..."
+          # Usamos || true para ignorar a falha se o usuário já existe
+          gcloud run jobs execute "${JOB_NAME_SUPERUSER}" --region "${{ vars.REGION }}" --wait --quiet || true 
+          echo "Job de Superuser concluído."
+
+      # --- 5. DEPLOY DO SERVIÇO PRINCIPAL ---
+      - name: 🚀 Deploy do Serviço Principal
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ vars.SERVICE_NAME }}
           region: ${{ vars.REGION }}
           image: ${{ steps.build_push.outputs.image_url }}
           service_account: ${{ vars.SA_RUNTIME_EMAIL }}
-          flags: --add-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} --service-account=${{ vars.SA_RUNTIME_EMAIL }}
+          # Ajuste os flags para usar o formato com --set-env-vars para injetar o GCS Secret
+          flags: |
+            --add-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }}
+            --service-account=${{ vars.SA_RUNTIME_EMAIL }}
           env_vars: |
             SECRET_KEY=${{ secrets.SECRET_KEY }}
             DB_USER=${{ secrets.DB_USER }}
@@ -65,99 +155,5 @@ jobs:
             IS_CLOUD_RUN=True
             GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }}
             DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,*.run.app,crcttec.com.br,www.crcttec.com.br
-
-      - name: Executar Migrations (Comando Isolado)
-        shell: bash
-        run: |
-          # 1. DEFINIR VARIÁVEIS PRINCIPAIS
-          IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
-          JOB_NAME="${{ vars.SERVICE_NAME }}-migrate"
-          REGION="${{ vars.REGION }}"
-          SQL_INSTANCE="${{ vars.CLOUD_SQL_CONNECTION_NAME }}"
-          SA_EMAIL="${{ vars.SA_RUNTIME_EMAIL }}"
-          
-          # 2. MONTAR STRING DE VARIÁVEIS DE AMBIENTE (ENV VARS)
-          ENV_VARS="SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},MONGODB_URI=${{ secrets.MONGODB_URI }},CLOUD_SQL_CONNECTION_NAME=$SQL_INSTANCE,DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True"
-
-          # 3. MONTAR STRING DE FLAGS DE CONFIGURAÇÃO (para CREATE/UPDATE)
-          CONFIG_FLAGS="--region $REGION --image $IMAGE_URL --command python --args manage.py,migrate,--noinput --set-cloudsql-instances $SQL_INSTANCE --service-account $SA_EMAIL --set-env-vars $ENV_VARS --quiet"
-          
-          # 4. CRIAR ou ATUALIZAR o Job
-          echo "1. Tentando criar o Job (ignora 'já existe')..."
-          # Usa a flag --quiet dentro da string de flags
-          gcloud beta run jobs create "$JOB_NAME" $CONFIG_FLAGS || true
-
-          echo "2. Atualizando o Job..."
-          # Para o UPDATE, mudamos apenas a flag de variáveis de ambiente de --set para --update
-          gcloud beta run jobs update "$JOB_NAME" --region "$REGION" --image "$IMAGE_URL" --set-cloudsql-instances "$SQL_INSTANCE" --service-account "$SA_EMAIL" --update-env-vars "$ENV_VARS" --quiet
-            
-          # 5. EXECUTAR o Job
-          echo "3. Executando o Job..."
-          # O comando de execução é o mais simples possível
-          gcloud beta run jobs execute "$JOB_NAME" --region "$REGION" --wait --quiet
-
-      - name: Executar Criação de Superuser do Cloud Run Job
-        run: |
-          JOB_NAME_SUPERUSER="${{ vars.SERVICE_NAME }}-superuser"
-          IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
-
-          # 1. Atualizar o Job (para garantir a imagem e secrets corretos)
-          echo "1. Atualizando o Job de Superuser..."
-          gcloud run jobs update "${JOB_NAME_SUPERUSER}" \
-            --region ${{ vars.REGION }} \
-            --image ${IMAGE_URL} \
-            --set-secrets=DJANGO_SUPERUSER_PASSWORD=superuser_password:latest,DJANGO_SUPERUSER_USERNAME=superuser_username:latest \
-            --quiet
-          
-          # 2. Executa o Job e AGUARDA sua conclusão.
-          # O comando 'gcloud run jobs execute' deve ser executado com o || true
-          # para que a falha interna do contêiner não quebre o workflow.
-          echo "2. Executando Job de Criação de Superuser (pode retornar erro se usuário já existir)..."
-          
-          # O comando execute do gcloud é o que precisa da validação
-          gcloud run jobs execute "${JOB_NAME_SUPERUSER}" \
-            --region "${{ vars.REGION }}" \
-            --wait --quiet || true 
-          
-          echo "Job de Superuser concluído (ou ignorado com sucesso se o usuário já existia)."
-      
-      # --- NOVO STEP: EXECUTAR COLLECTSTATIC ---
-      - name: 🚀 Executar Collectstatic no Cloud Run Job
-        id: collectstatic_job
-        # O Job de Collectstatic usa a mesma imagem recém-construída
-        env:
-          JOB_NAME_STATIC: ${{ vars.SERVICE_NAME }}-collectstatic
-          IMAGE_URL: ${{ steps.build_push.outputs.image_url }} # Usa o output do step de build
-          REGION: ${{ vars.REGION }}
-          CLOUD_SQL_CONN: ${{ vars.CLOUD_SQL_CONNECTION_NAME }}
-          SA_RUNTIME: ${{ vars.SA_RUNTIME_EMAIL }} # Certifique-se de que esta variável está definida
-          BUCKET_NAME: ${{ vars.BUCKET_NAME }} # Certifique-se de que esta variável está definida
-
-        run: |
-          echo "--- 1. Atualizando o Job de Collectstatic ---"
-          # O comando é passado diretamente para o Cloud Run Jobs
-          gcloud run jobs update "${JOB_NAME_STATIC}" \
-            --region ${REGION} \
-            --image ${IMAGE_URL} \
-            --command /usr/local/bin/python \
-            --args manage.py,collectstatic,--noinput \
-            --set-cloudsql-instances ${CLOUD_SQL_CONN} \
-            --set-env-vars CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONN},DB_NAME=provision_db,IS_CLOUD_RUN=True,GS_BUCKET_NAME=${BUCKET_NAME} \
-            --service-account ${SA_RUNTIME} \
-            --quiet || gcloud run jobs create "${JOB_NAME_STATIC}" \
-            --region ${REGION} \
-            --image ${IMAGE_URL} \
-            --command /usr/local/bin/python \
-            --args manage.py,collectstatic,--noinput \
-            --set-cloudsql-instances ${CLOUD_SQL_CONN} \
-            --set-env-vars CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONN},DB_NAME=provision_db,IS_CLOUD_RUN=True,GS_BUCKET_NAME=${BUCKET_NAME} \
-            --service-account ${SA_RUNTIME} \
-            --quiet
-            
-          echo "--- 2. Executando o Collectstatic Job (pode demorar) ---"
-          # Executa e aguarda a conclusão.
-          gcloud run jobs execute "${JOB_NAME_STATIC}" \
-            --region ${REGION} \
-            --wait --quiet
-            
-          echo "Collectstatic Job concluído com sucesso. Arquivos estáticos estão no GCS."
+            # 🚨 VARIÁVEL CRÍTICA INJETADA 🚨
+            GCS_SA_KEY_JSON=${{ steps.get_gcs_secret.outputs.GCS_SECRET_VALUE }}

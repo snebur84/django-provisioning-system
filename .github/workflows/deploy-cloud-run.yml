@@ -120,3 +120,44 @@ jobs:
             --wait --quiet || true 
           
           echo "Job de Superuser concluído (ou ignorado com sucesso se o usuário já existia)."
+      
+      # --- NOVO STEP: EXECUTAR COLLECTSTATIC ---
+      - name: 🚀 Executar Collectstatic no Cloud Run Job
+        id: collectstatic_job
+        # O Job de Collectstatic usa a mesma imagem recém-construída
+        env:
+          JOB_NAME_STATIC: ${{ vars.SERVICE_NAME }}-collectstatic
+          IMAGE_URL: ${{ steps.build_push.outputs.image_url }} # Usa o output do step de build
+          REGION: ${{ vars.REGION }}
+          CLOUD_SQL_CONN: ${{ vars.CLOUD_SQL_CONNECTION_NAME }}
+          SA_RUNTIME: ${{ vars.SA_RUNTIME_EMAIL }} # Certifique-se de que esta variável está definida
+          BUCKET_NAME: ${{ vars.BUCKET_NAME }} # Certifique-se de que esta variável está definida
+
+        run: |
+          echo "--- 1. Atualizando o Job de Collectstatic ---"
+          # O comando é passado diretamente para o Cloud Run Jobs
+          gcloud run jobs update "${JOB_NAME_STATIC}" \
+            --region ${REGION} \
+            --image ${IMAGE_URL} \
+            --command /usr/local/bin/python \
+            --args manage.py,collectstatic,--noinput \
+            --set-cloudsql-instances ${CLOUD_SQL_CONN} \
+            --set-env-vars CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONN},DB_NAME=provision_db,IS_CLOUD_RUN=True,GS_BUCKET_NAME=${BUCKET_NAME} \
+            --service-account ${SA_RUNTIME} \
+            --quiet || gcloud run jobs create "${JOB_NAME_STATIC}" \
+            --region ${REGION} \
+            --image ${IMAGE_URL} \
+            --command /usr/local/bin/python \
+            --args manage.py,collectstatic,--noinput \
+            --set-cloudsql-instances ${CLOUD_SQL_CONN} \
+            --set-env-vars CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONN},DB_NAME=provision_db,IS_CLOUD_RUN=True,GS_BUCKET_NAME=${BUCKET_NAME} \
+            --service-account ${SA_RUNTIME} \
+            --quiet
+            
+          echo "--- 2. Executando o Collectstatic Job (pode demorar) ---"
+          # Executa e aguarda a conclusão.
+          gcloud run jobs execute "${JOB_NAME_STATIC}" \
+            --region ${REGION} \
+            --wait --quiet
+            
+          echo "Collectstatic Job concluído com sucesso. Arquivos estáticos estão no GCS."

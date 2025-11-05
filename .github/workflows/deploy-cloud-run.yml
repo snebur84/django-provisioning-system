@@ -156,5 +156,15 @@ jobs:
             IS_CLOUD_RUN=True
             GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }}
             DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,*.run.app,crcttec.com.br,www.crcttec.com.br
-            # 🚨 VARIÁVEL CRÍTICA INJETADA 🚨
-            GCS_SA_KEY_JSON=${{ steps.get_gcs_secret.outputs.GCS_SECRET_VALUE }}
+            # 🚨 LINHA CRÍTICA 🚨
+            GCS_SA_KEY_B64=${{ steps.get_gcs_secret.outputs.GCS_SECRET_B64 }}
+
+      - name: 🐛 DEBUG: Exibir Status do Secret GCS
+        run: |
+          SECRET_B64="${{ steps.get_gcs_secret.outputs.GCS_SECRET_B64 }}"
+          if [ -z "$SECRET_B64" ]; then
+            echo "ERRO CRÍTICO: GCS_SECRET_B64 está vazio!"
+            exit 1 # Falha o CI/CD se estiver vazio
+          else
+            echo "SUCESSO: GCS_SECRET_B64 capturado. Tamanho: ${#SECRET_B64} caracteres."
+          fi

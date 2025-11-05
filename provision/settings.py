@@ -3,6 +3,7 @@ import logging
 import json
 from pathlib import Path
 from urllib.parse import urlparse
+from google.oauth2.service_account import Credentials as ServiceAccountCredentials
 
 logger = logging.getLogger(__name__)
 # =====================================================================
@@ -206,8 +207,8 @@ if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
     if GCS_SA_KEY_JSON:
         logger.info("Credencial GCS (JSON) encontrada. Tentando carregar...")
         try:
-            # 2a. Carrega o JSON para o objeto Python (Sem decodificação Base64!)
-            GS_CREDENTIALS = json.loads(GCS_SA_KEY_JSON)
+            GCS_SA_KEY_DICT = json.loads(GCS_SA_KEY_JSON)
+            GS_CREDENTIALS = ServiceAccountCredentials.from_service_account_info(GCS_SA_KEY_DICT)
             logger.info("Chave GCS carregada com sucesso do Secret.")
         except json.JSONDecodeError as e:
             # Mantemos o log de erro caso o Secret Manager injete algo inválido

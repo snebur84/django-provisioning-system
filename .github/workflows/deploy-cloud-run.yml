@@ -159,7 +159,7 @@ jobs:
             # 🚨 LINHA CRÍTICA 🚨
             GCS_SA_KEY_B64=${{ steps.get_gcs_secret.outputs.GCS_SECRET_B64 }}
 
-      - name: 🐛 DEBUG: Exibir Status do Secret GCS
+      - name: 🐛 DEBUG Exibir Status do Secret GCS
         run: |
           SECRET_B64="${{ steps.get_gcs_secret.outputs.GCS_SECRET_B64 }}"
           if [ -z "$SECRET_B64" ]; then

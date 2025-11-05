@@ -1,6 +1,7 @@
 import os
 import logging
-import json # Importação para carregar o JSON da chave GCS
+import json 
+import base64 # 🚨 IMPORT NECESSÁRIO PARA DECODIFICAÇÃO BASE64 🚨
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -12,7 +13,6 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --- Detecção e Variáveis Críticas ---
-# CORREÇÃO: Usa 'K_SERVICE' ou 'IS_CLOUD_RUN' para detecção robusta
 IS_CLOUD_RUN_PRODUCTION = os.getenv("IS_CLOUD_RUN") == "True" or os.getenv("K_SERVICE") is not None
 
 # Secrets e Debug
@@ -31,7 +31,7 @@ ALLOWED_HOSTS.append("*.crcttec.com.br")
 ALLOWED_HOSTS.append("www.crcttec.com.br")
 ALLOWED_HOSTS.append(".run.app")
 
-from django.core.management.utils import get_random_secret_key # Importação necessária para o shell
+from django.core.management.utils import get_random_secret_key 
 try:
     from django.conf import settings
     # Captura o host dinâmico se a aplicação estiver rodando
@@ -56,7 +56,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "django.contrib.sites", # Necessário para Allauth
+    "django.contrib.sites",
 
     # Third party
     "rest_framework",
@@ -71,7 +71,6 @@ INSTALLED_APPS = [
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
-    # Adicione outros provedores aqui (ex: github)
 
     # Local apps
     "core",
@@ -86,13 +85,13 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    'allauth.account.middleware.AccountMiddleware', # Allauth middleware
+    'allauth.account.middleware.AccountMiddleware',
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
 ROOT_URLCONF = "provision.urls"
-WSGI_APPLICATION = "provision.wsgi.application" # Seu módulo WSGI principal
+WSGI_APPLICATION = "provision.wsgi.application"
 
 TEMPLATES = [
     {
@@ -136,7 +135,7 @@ if IS_CLOUD_RUN_PRODUCTION and CLOUD_SQL_CONNECTION_NAME:
             "NAME": DB_NAME,
             "USER": DB_USER,
             "PASSWORD": DB_PASSWORD,
-            "HOST": 'localhost', # Host ignorado pelo socket
+            "HOST": 'localhost',
             "OPTIONS": {
                 "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
                 # Conexão via socket Unix do Cloud SQL Proxy
@@ -148,7 +147,7 @@ if IS_CLOUD_RUN_PRODUCTION and CLOUD_SQL_CONNECTION_NAME:
     DATABASES["default"]["CONN_MAX_AGE"] = int(os.getenv("DJANGO_CONN_MAX_AGE", 60))
 
 else:
-    # Perfil de Desenvolvimento Local / MySQL Local (Lê diretamente as vars DB_)
+    # Perfil de Desenvolvimento Local / MySQL Local
     DATABASES = {
         "default": {
             "ENGINE": DB_ENGINE, 
@@ -199,20 +198,24 @@ if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
     
     # 🚨 CONFIGURAÇÃO DE SEGURANÇA GCS (URL ASSINADA) 🚨
     
-    # 1. Ativa a assinatura de URL (necessário quando o bucket não é público e previne AccessDenied)
+    # 1. Ativa a assinatura de URL
     GS_QUERYSTRING_AUTH = True 
     
-    # 2. Carrega as credenciais do Secret Manager injetadas no ambiente (GCS_SA_KEY_JSON)
-    GCS_SA_KEY_JSON = os.getenv("GCS_SA_KEY_JSON")
+    # 2. Carrega as credenciais Base64 injetadas pelo CI/CD
+    # O nome da variável no CI/CD DEVE ser GCS_SA_KEY_B64
+    GCS_SA_KEY_B64 = os.getenv("GCS_SA_KEY_B64") # 🚨 NOME DA VARIÁVEL DE AMBIENTE 🚨
     GS_CREDENTIALS = None
     
-    if GCS_SA_KEY_JSON:
+    if GCS_SA_KEY_B64:
         try:
-            # Tenta decodificar o conteúdo JSON injetado pelo Cloud Run/CI/CD
-            GS_CREDENTIALS = json.loads(GCS_SA_KEY_JSON)
-        except json.JSONDecodeError:
-            # Loga o erro se o Secret estiver mal formatado
-            logger.error("Erro ao decodificar GCS_SA_KEY_JSON. Verifique o formato do Secret.")
+            # 2a. Decodifica Base64 -> Texto JSON multilinha
+            GCS_SA_KEY_JSON_RAW = base64.b64decode(GCS_SA_KEY_B64).decode('utf-8')
+            
+            # 2b. Carrega o JSON para o objeto Python
+            GS_CREDENTIALS = json.loads(GCS_SA_KEY_JSON_RAW)
+        except Exception as e:
+            # Loga qualquer erro durante a decodificação ou carregamento do JSON
+            logger.error(f"Erro CRÍTICO ao processar chave GCS (Base64/JSON): {e}")
     
     # ----------------------------------------------------
     
@@ -222,7 +225,7 @@ if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
             "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
             "OPTIONS": {
                 "bucket_name": GS_BUCKET_NAME,
-                # 3. Injeta a chave JSON decodificada (resolve o 'AttributeError: you need a private key')
+                # 3. Injeta a chave JSON decodificada
                 "credentials": GS_CREDENTIALS, 
             },
         },
@@ -239,7 +242,7 @@ if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
     STATIC_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/static/"
     MEDIA_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/media/"
     STATICFILES_DIRS = [BASE_DIR / "static"] 
-    STATIC_ROOT = BASE_DIR / "staticfiles_collected" # Necessário para o collectstatic
+    STATIC_ROOT = BASE_DIR / "staticfiles_collected" 
     
 else:
     # Desenvolvimento Local/Build do Docker: Uso do sistema de arquivos local
@@ -255,7 +258,7 @@ else:
 # --- Autenticação e Allauth ---
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
-    'allauth.account.auth_backends.AuthenticationBackend',
+    'allauth.account.auth_backends.AuthenticationAuthenticationBackend',
 ]
 
 LOGIN_REDIRECT_URL = os.getenv("LOGIN_REDIRECT_URL", "/")
@@ -323,7 +326,6 @@ SPECTACULAR_SETTINGS = {
 }
 
 OAUTH2_PROVIDER = {
-    # Tempo de expiração reduzido para forçar a renovação, se necessário (padrão é 36000)
     "ACCESS_TOKEN_EXPIRE_SECONDS": int(os.getenv("OAUTH_ACCESS_TOKEN_EXPIRE", 3600)),
     "REFRESH_TOKEN_EXPIRE_SECONDS": int(os.getenv("OAUTH_REFRESH_TOKEN_EXPIRE", 60 * 60 * 24 * 30)),
     "ROTATE_REFRESH_TOKEN": True,
@@ -345,7 +347,7 @@ if not DEBUG and IS_CLOUD_RUN_PRODUCTION:
     CSRF_COOKIE_SECURE = True
     
     # HSTS ativado
-    SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "31536000")) # 1 ano
+    SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "31536000")) 
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     

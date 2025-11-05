@@ -197,39 +197,39 @@ if IS_CLOUD_RUN_PRODUCTION and os.getenv("GS_BUCKET_NAME"):
     
     GS_BUCKET_NAME = os.getenv("GS_BUCKET_NAME")
     
-    # Adicione GS_QUERYSTRING_AUTH = False para desativar o URL signing
-    # Isso resolve o 'AttributeError: you need a private key' na maioria das versões mais antigas/médias
-    GS_QUERYSTRING_AUTH = False  # <--- NOVA CORREÇÃO GLOBAL
+    # 🚨 SOLUÇÃO DE AUTENTICAÇÃO GCS NO CLOUD RUN 🚨
+    # 1. Torna os arquivos publicamente legíveis por padrão (evita a necessidade de autenticação)
+    GS_DEFAULT_ACL = 'public-read'
+    
+    # 2. Desativa a autenticação via query string (que usa chaves privadas)
+    # Isso resolve o 'AttributeError: you need a private key to sign credentials'
+    GS_QUERYSTRING_AUTH = False
+    
+    # ----------------------------------------------------
     
     # Define os backends de armazenamento para Django 4.2+
     STORAGES = {
         "default": {
             "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
             "OPTIONS": {
-                # Não colocamos 'url_signer' aqui para evitar o erro 'Invalid setting'
-                "bucket_name": GS_BUCKET_NAME,
+                # O OPTIONS é usado apenas para passar o nome do bucket, evitando 'Invalid setting'
+                "bucket_name": GS_BUCKET_NAME, 
             },
         },
         "staticfiles": {
             "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
             "OPTIONS": {
-                # Não colocamos 'url_signer' aqui para evitar o erro 'Invalid setting'
                 "bucket_name": GS_BUCKET_NAME,
             },
         },
     }
     
+    # IMPORTANTE: STATIC_ROOT é necessário se você rodar collectstatic
+    STATIC_ROOT = BASE_DIR / "staticfiles_collected" 
+    
     STATIC_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/static/"
     MEDIA_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/media/"
-    
     STATICFILES_DIRS = [BASE_DIR / "static"] 
-    STATIC_ROOT = None
-    
-else:
-    # Desenvolvimento Local/Build do Docker: Uso do sistema de arquivos local
-    STATIC_URL = "/static/"
-    STATIC_ROOT = BASE_DIR / "staticfiles"
-    STATICFILES_DIRS = [BASE_DIR / "static"]
     
 else:
     # Desenvolvimento Local/Build do Docker: Uso do sistema de arquivos local

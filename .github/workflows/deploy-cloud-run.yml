@@ -144,7 +144,7 @@ jobs:
 
           flags: |
             --add-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }}
-            --remove-env-vars GCS_SA_KEY_B64 # <--- ESSA LINHA RESOLVE O ERRO DE TIPO
+            --remove-env-vars GCS_SA_KEY_B64
             
           env_vars: |
             SECRET_KEY=${{ secrets.SECRET_KEY }}

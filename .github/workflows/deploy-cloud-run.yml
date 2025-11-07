@@ -46,7 +46,22 @@ jobs:
           docker push $IMAGE_URL
           echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
 
-      # --- 3. INJEÇÃO DE SECRETS (CHAVE GCS) ---
+      # --- 3. EXECUÇÃO DE TESTES (Pytest) ---
+      - name: 🧪 Executar Testes Django (Pytest)
+        id: run_tests
+        env:
+          IMAGE_URL: ${{ steps.build_push.outputs.image_url }}
+          # Variável de ambiente necessária para os testes, se acessada via os.getenv()
+          PROVISION_API_KEY: 'test-ci-key' 
+        run: |
+          echo "Iniciando testes no container: $IMAGE_URL"
+          # Comando para rodar os testes usando a imagem recém-construída.
+          # O Pytest é invocado via manage.py test (graças ao TEST_RUNNER no settings.py).
+          docker run --rm \
+            -e PROVISION_API_KEY=$PROVISION_API_KEY \
+            $IMAGE_URL /usr/local/bin/python manage.py test
+
+      # --- 4. INJEÇÃO DE SECRETS (CHAVE GCS) ---
       - name: 🔑 Obter Chave Privada do GCS do Secret Manager
         id: get_gcs_secret
         run: |
@@ -57,7 +72,7 @@ jobs:
           # O nome da saída é GCS_SECRET_B64, que usaremos nos outros steps.
           echo "GCS_SECRET_B64=$GCS_SECRET_B64" >> $GITHUB_OUTPUT
 
-      # --- 4. EXECUÇÃO DE JOBS (MIGRATE, COLLECTSTATIC, SUPERUSER) ---
+      # --- 5. EXECUÇÃO DE JOBS (MIGRATE, COLLECTSTATIC, SUPERUSER) ---
       
       # Step A: Executar Migrations (DEVE vir primeiro)
       - name: ⚙️ Executar Migrations
@@ -133,7 +148,7 @@ jobs:
           gcloud run jobs execute "${JOB_NAME_SUPERUSER}" --region "${{ vars.REGION }}" --wait --quiet || true 
           echo "Job de Superuser concluído."
 
-      # --- 5. DEPLOY DO SERVIÇO PRINCIPAL ---
+      # --- 6. DEPLOY DO SERVIÇO PRINCIPAL ---
       - name: 🚀 Deploy do Serviço Principal
         uses: google-github-actions/deploy-cloudrun@v2
         with:

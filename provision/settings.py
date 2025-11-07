@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.sites",
+    "pytest_django",
 
     # Third party
     "rest_framework",
@@ -248,6 +249,7 @@ else:
     STATIC_ROOT = BASE_DIR / "staticfiles"
     STATICFILES_DIRS = [BASE_DIR / "static"]
 
+TEST_RUNNER = 'pytest_django.runner.TestRunner'
 
 # =====================================================================
 # 3. AUTENTICAÇÃO, API E SEGURANÇA

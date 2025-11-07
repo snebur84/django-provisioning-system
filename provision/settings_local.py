@@ -133,6 +133,7 @@ else:
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"  # já existe
 
+TEST_RUNNER = 'pytest_django.runner.TestRunner'
 # Adicione as pastas onde seus arquivos estáticos estão atualmente
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

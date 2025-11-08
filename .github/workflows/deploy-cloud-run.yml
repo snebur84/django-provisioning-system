@@ -60,7 +60,7 @@ jobs:
             -e PROVISION_API_KEY=$PROVISION_API_KEY \
             -e DATABASE_URL=$DATABASE_URL \
             -e IS_CLOUD_RUN=$IS_CLOUD_RUN \
-            $IMAGE_URL /usr/local/bin/python manage.py test -- --keep-unmarked -m "not integration"
+            $IMAGE_URL /usr/local/bin/python manage.py test -- -m "not integration"
       # =========================================================
 
       # --- 4. INJEÇÃO DE SECRETS (CHAVE GCS) ---
@@ -115,7 +115,7 @@ jobs:
             --region ${{ vars.REGION }} \
             --image ${IMAGE_URL} \
             --command python \
-            --args manage.py,test,--,--keep-unmarked,-m,integration \
+            --args manage.py,test,--,-m,integration \
             --set-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} \
             --set-env-vars ${ENV_VARS_INTEGRATION} \
             --service-account ${{ vars.SA_RUNTIME_EMAIL }} \

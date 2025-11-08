@@ -106,11 +106,12 @@ jobs:
         run: |
           IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
           JOB_NAME_INTEGRATION="${{ vars.SERVICE_NAME }}-integration-test"
-          # Variáveis para o Job de Testes de Integração
+          # Variáveis para o Job de Testes de Integração (mantidas inalteradas)
           ENV_VARS_INTEGRATION="SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},MONGODB_URI=${{ secrets.MONGODB_URI }},CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True,GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }},GCS_SA_KEY_B64=${{ steps.get_gcs_secret.outputs.GCS_SECRET_B64 }}"
 
-          echo "1. Atualizando o Job de Teste de Integração..."
-          # Update do Job com o comando Pytest e o marker 'integration'
+          echo "1. Tentando atualizar o Job de Teste de Integração (ou criando se não existir)..."
+          
+          # Se o job existir, atualiza; se não, cria.
           gcloud beta run jobs update "${JOB_NAME_INTEGRATION}" \
             --region ${{ vars.REGION }} \
             --image ${IMAGE_URL} \
@@ -119,7 +120,17 @@ jobs:
             --set-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} \
             --set-env-vars ${ENV_VARS_INTEGRATION} \
             --service-account ${{ vars.SA_RUNTIME_EMAIL }} \
-            --quiet || true
+            --quiet \
+          || \
+          gcloud beta run jobs create "${JOB_NAME_INTEGRATION}" \
+            --region ${{ vars.REGION }} \
+            --image ${IMAGE_URL} \
+            --command python \
+            --args manage.py,test,--,-m,integration \
+            --set-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} \
+            --set-env-vars ${ENV_VARS_INTEGRATION} \
+            --service-account ${{ vars.SA_RUNTIME_EMAIL }} \
+            --quiet
 
           echo "2. Executando os Testes de Integração..."
           # Executa o Job. Se falhar, o CI/CD para aqui.

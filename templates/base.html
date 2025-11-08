@@ -1,4 +1,5 @@
 {% load static %}
+{% load account %}
 <!doctype html>
 <html lang="pt-BR">
 <head>
@@ -55,8 +56,7 @@
               <span class="nav-link">Olá, {{ user.get_username }}</span>
             </li>
             <li class="nav-item">
-              {# Usando a URL de logout do Admin (assumindo que você a usa para sair de tudo) #}
-              <form method="post" action="{% url 'admin:logout' %}" style="display:inline;">
+              <form method="post" action="{% url 'account_logout' %}" style="display:inline;">
                 {% csrf_token %}
                 <button type="submit" class="nav-link nav-logout-btn">Sair</button>
               </form>

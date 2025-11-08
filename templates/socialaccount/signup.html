@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+
+{% block head_title %}{% trans "Criar Conta Social" %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5 col-lg-4"> 
+        <h1 class="mb-4">{% trans "Complete o Cadastro" %}</h1>
+        
+        <p>{% blocktrans with provider_name=account.provider.name %}Você está prestes a se registrar usando sua conta Google{% endblocktrans %}</p>
+        
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form class="signup" id="signup_form" method="post" action="{% url 'socialaccount_signup' %}">
+                    {% csrf_token %}
+                    
+                    {# 🚨 APLICAÇÃO DO ESTILO CRISPY FORMS 🚨 #}
+                    {{ form|crispy }}
+                    
+                    {% if redirect_field_value %}
+                    <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}" />
+                    {% endif %}
+                    
+                    <button class="btn btn-primary d-block w-100 mt-3" type="submit">{% trans "Confirmar" %}</button>
+                </form>
+            </div>
+        </div>
+        
+    </div>
+</div>
+{% endblock %}

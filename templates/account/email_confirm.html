@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+{% load account %}
+
+{% block head_title %}{% trans "Confirmar Endereço de E-mail" %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5 col-lg-4"> 
+        <h1 class="mb-4">{% trans "Confirmação de E-mail" %}</h1>
+        
+        {% if confirmation %}
+        
+            {% user_display confirmation.email_address.user as user_display %}
+            
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <p>{% blocktrans with confirmation.email_address.email as email %}Por favor, confirme que você deseja usar este endereço de e-mail, {{ email }}, para a conta de usuário {{ user_display }}.{% endblocktrans %}</p>
+                    
+                    <form method="post" action="{% url 'account_confirm_email' confirmation.key %}">
+                        {% csrf_token %}
+                        <button class="btn btn-primary d-block w-100 mt-3" type="submit">{% trans 'Confirmar' %}</button>
+                    </form>
+                </div>
+            </div>
+
+        {% else %}
+        
+            {# No caso de o token de confirmação ser inválido ou já ter sido usado #}
+            <div class="alert alert-danger" role="alert">
+                {% trans "Confirmação de e-mail inválida ou expirada." %}
+            </div>
+            <p>{% url 'account_email' as email_url %}{% blocktrans %}Se você deseja tentar novamente, por favor, visite a <a href="{{ email_url }}">página de gerenciamento de e-mail</a>.{% endblocktrans %}</p>
+
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

@@ -17,7 +17,7 @@ except Exception:
 # 1. CONFIGURAÇÕES BÁSICAS E DE AMBIENTE (LOCAL)
 # =====================================================================
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "change-me-in-development")
+SECRET_KEY = "5YgAhHqOkwaTB0Suhk_hzgSUe_uDbehtLkiDJEsTkuwttvA_cLJ7x0OytG4ayeEyw74"
 DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
 
 ALLOWED_HOSTS = [
@@ -42,6 +42,10 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "oauth2_provider",
 
+    # Django Crispy Forms
+    "crispy_forms",
+    "crispy_bootstrap5",
+
     # Allauth
     "allauth",
     "allauth.account",
@@ -54,6 +58,9 @@ INSTALLED_APPS = [
 ]
 
 SITE_ID = 1
+
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -130,6 +137,15 @@ else:
     }
 
 # em settings.py, seção de static (dev)
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
+
+STATICFILES_FINDERS = [
+        'django.contrib.staticfiles.finders.FileSystemFinder',
+        'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+    ]
+
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"  # já existe
 
@@ -149,11 +165,13 @@ AUTHENTICATION_BACKENDS = [
 
 LOGIN_REDIRECT_URL = os.getenv("LOGIN_REDIRECT_URL", "/")
 ACCOUNT_LOGOUT_REDIRECT_URL = os.getenv("ACCOUNT_LOGOUT_REDIRECT_URL", "/")
-ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_AUTHENTICATION_METHOD = "username_email"
 ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_USERNAME_REQUIRED = True
+ACCOUNT_ALLOW_REGISTRATION = True
+ACCOUNT_SIGNUP_PASSWORD_RETYPE = True
 ACCOUNT_EMAIL_VERIFICATION = os.getenv("ACCOUNT_EMAIL_VERIFICATION", "mandatory")
-LOGIN_URL = "/accounts/login/"
+LOGIN_URL = "/account/login/"
 
 SOCIALACCOUNT_PROVIDERS = {
     "google": {

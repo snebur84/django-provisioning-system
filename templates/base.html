@@ -38,9 +38,11 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarsExample">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-          <li class="nav-item"><a class="nav-link" href="{% url 'core:device_list' %}">Dispositivos</a></li>
-          <li class="nav-item"><a class="nav-link" href="{% url 'core:profile_list' %}">Perfis</a></li>
-          <li class="nav-item"><a class="nav-link" href="{% url 'core:template_list' %}">Templates</a></li>
+          {% if user.is_authenticated %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'core:device_list' %}">Dispositivos</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'core:profile_list' %}">Perfis</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'core:template_list' %}">Templates</a></li>
+          {% endif %}
         </ul>
 
         <ul class="navbar-nav ms-auto">
@@ -53,14 +55,17 @@
               <span class="nav-link">Olá, {{ user.get_username }}</span>
             </li>
             <li class="nav-item">
-              {# usar POST para logout para evitar 405; admin:logout exige confirmação POST #}
+              {# Usando a URL de logout do Admin (assumindo que você a usa para sair de tudo) #}
               <form method="post" action="{% url 'admin:logout' %}" style="display:inline;">
                 {% csrf_token %}
                 <button type="submit" class="nav-link nav-logout-btn">Sair</button>
               </form>
             </li>
           {% else %}
-            <li class="nav-item"><a class="nav-link" href="{% url 'admin:login' %}">Entrar</a></li>
+            {# Botão Entrar para o Login de Credenciais Personalizado (name='login') #}
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'login' %}">Entrar</a>
+            </li>
           {% endif %}
         </ul>
       </div>

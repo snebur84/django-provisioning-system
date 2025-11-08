@@ -104,9 +104,7 @@ jobs:
         run: |
           IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
           JOB_NAME_INTEGRATION="${{ vars.SERVICE_NAME }}-integration-test"
-          
-          # Use as mesmas ENV_VARS complexas dos Jobs de Migração/Collectstatic
-          # para que o Job de teste possa se conectar ao Cloud SQL/Mongo
+          # Variáveis para o Job de Testes de Integração
           ENV_VARS_INTEGRATION="SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},MONGODB_URI=${{ secrets.MONGODB_URI }},CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True,GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }},GCS_SA_KEY_B64=${{ steps.get_gcs_secret.outputs.GCS_SECRET_B64 }}"
 
           echo "1. Atualizando o Job de Teste de Integração..."

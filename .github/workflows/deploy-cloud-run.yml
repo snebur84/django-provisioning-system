@@ -46,20 +46,22 @@ jobs:
           docker push $IMAGE_URL
           echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
 
-      # --- 3. EXECUÇÃO DE TESTES (Pytest) ---
-      - name: 🧪 Executar Testes Django (Pytest)
-        id: run_tests
+      # --- 3. EXECUÇÃO DE TESTES UNITARIOS (Pytest) ---
+      - name: 🧪 Executar Testes Unitários Puros (Sem DB)
+        id: run_tests_unit
         env:
           IMAGE_URL: ${{ steps.build_push.outputs.image_url }}
-          # Variável de ambiente necessária para os testes, se acessada via os.getenv()
           PROVISION_API_KEY: 'test-ci-key' 
+          DATABASE_URL: 'sqlite:///test.db' 
+          IS_CLOUD_RUN: True
         run: |
-          echo "Iniciando testes no container: $IMAGE_URL"
-          # Comando para rodar os testes usando a imagem recém-construída.
-          # O Pytest é invocado via manage.py test (graças ao TEST_RUNNER no settings.py).
+          echo "Iniciando testes unitários (markers: unit ou not integration)"
           docker run --rm \
             -e PROVISION_API_KEY=$PROVISION_API_KEY \
-            $IMAGE_URL /usr/local/bin/python manage.py test
+            -e DATABASE_URL=$DATABASE_URL \
+            -e IS_CLOUD_RUN=$IS_CLOUD_RUN \
+            $IMAGE_URL /usr/local/bin/python manage.py test -- --keep-unmarked -m "not integration"
+      # =========================================================
 
       # --- 4. INJEÇÃO DE SECRETS (CHAVE GCS) ---
       - name: 🔑 Obter Chave Privada do GCS do Secret Manager

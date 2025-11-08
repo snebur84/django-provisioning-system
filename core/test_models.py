@@ -2,6 +2,7 @@ import pytest
 from django.core.exceptions import ValidationError
 from core.models import DeviceProfile, DeviceConfig
 
+pytestmark = pytest.mark.integration
 
 @pytest.mark.django_db
 def test_deviceprofile_port_validation():

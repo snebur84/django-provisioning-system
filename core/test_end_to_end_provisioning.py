@@ -4,6 +4,8 @@ from django.test import Client
 from core.models import DeviceProfile, DeviceConfig
 import api.views as views
 
+pytestmark = pytest.mark.integration
+
 @pytest.mark.django_db
 def test_full_provision_flow(monkeypatch):
     client = Client()

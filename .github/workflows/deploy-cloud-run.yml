@@ -99,7 +99,34 @@ jobs:
           gcloud beta run jobs execute "$JOB_NAME" --region ${{ vars.REGION }} --wait --quiet
           echo "Migrações concluídas."
 
-      # Step B: Executar Collectstatic (DEVE vir antes do Deploy principal)
+      # Step B: Executar Testes de Integração (MySQL/Mongo)
+      - name: 🔗 Executar Testes de Integração (MySQL/Mongo)
+        run: |
+          IMAGE_URL="${{ steps.build_push.outputs.image_url }}"
+          JOB_NAME_INTEGRATION="${{ vars.SERVICE_NAME }}-integration-test"
+          
+          # Use as mesmas ENV_VARS complexas dos Jobs de Migração/Collectstatic
+          # para que o Job de teste possa se conectar ao Cloud SQL/Mongo
+          ENV_VARS_INTEGRATION="SECRET_KEY=${{ secrets.SECRET_KEY }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},MONGODB_URI=${{ secrets.MONGODB_URI }},CLOUD_SQL_CONNECTION_NAME=${{ vars.CLOUD_SQL_CONNECTION_NAME }},DB_NAME=${{ vars.DB_NAME }},IS_CLOUD_RUN=True,GS_BUCKET_NAME=${{ vars.GS_BUCKET_NAME }},GCS_SA_KEY_B64=${{ steps.get_gcs_secret.outputs.GCS_SECRET_B64 }}"
+
+          echo "1. Atualizando o Job de Teste de Integração..."
+          # Update do Job com o comando Pytest e o marker 'integration'
+          gcloud beta run jobs update "${JOB_NAME_INTEGRATION}" \
+            --region ${{ vars.REGION }} \
+            --image ${IMAGE_URL} \
+            --command python \
+            --args manage.py,test,--,--keep-unmarked,-m,integration \
+            --set-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} \
+            --set-env-vars ${ENV_VARS_INTEGRATION} \
+            --service-account ${{ vars.SA_RUNTIME_EMAIL }} \
+            --quiet || true
+
+          echo "2. Executando os Testes de Integração..."
+          # Executa o Job. Se falhar, o CI/CD para aqui.
+          gcloud beta run jobs execute "${JOB_NAME_INTEGRATION}" --region ${{ vars.REGION }} --wait --quiet
+          echo "Testes de Integração concluídos."
+
+      # Step C: Executar Collectstatic
       - name: 🖼️ Executar Collectstatic (Upload de CSS/JS para GCS)
         run: |
           JOB_NAME_STATIC="${{ vars.SERVICE_NAME }}-collectstatic"
@@ -117,13 +144,13 @@ jobs:
             --set-cloudsql-instances ${{ vars.CLOUD_SQL_CONNECTION_NAME }} \
             --set-env-vars ${ENV_VARS_STATIC} \
             --service-account ${{ vars.SA_RUNTIME_EMAIL }} \
-            --quiet || true # Cria se não existir
+            --quiet || true 
 
           echo "2. Executando o Collectstatic Job..."
           gcloud run jobs execute "${JOB_NAME_STATIC}" --region ${{ vars.REGION }} --wait --quiet
           echo "Collectstatic Job concluído."
-          
-      # Step C: Executar Criação de Superuser (Pode vir por último antes do deploy)
+
+      # Step D: Executar Criação de Superuser 
       - name: 👤 Executar Criação de Superuser
         run: |
           JOB_NAME_SUPERUSER="${{ vars.SERVICE_NAME }}-superuser"

@@ -6,6 +6,7 @@ from django.test import Client
 import api.views as views
 from core.models import DeviceProfile, DeviceConfig
 
+pytestmark = pytest.mark.integration
 
 @pytest.mark.django_db
 def test_download_config_success(monkeypatch, settings):

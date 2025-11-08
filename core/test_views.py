@@ -4,6 +4,8 @@ from django.test import Client
 from django.contrib.auth import get_user_model
 from importlib import import_module
 
+pytestmark = pytest.mark.integration
+
 @pytest.mark.django_db
 def test_profile_create_or_update_post_creates_profile():
     """

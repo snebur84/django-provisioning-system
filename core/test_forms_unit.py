@@ -1,6 +1,8 @@
 import pytest
 from importlib import import_module
 
+pytestmark = pytest.mark.integration
+
 @pytest.mark.django_db
 def test_deviceprofile_form_valid_minimal():
     """
